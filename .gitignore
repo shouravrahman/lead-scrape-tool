@@ -6,6 +6,7 @@ ENV/
 
 # Secrets
 .env
+.streamlit/secrets.toml
 
 # Database
 *.db

@@ -70,13 +70,22 @@ class ICPSettings(Base):
 
 # Database Setup
 import os
-# Use /data/ (Render persistent disk) if it exists, otherwise local
-if os.path.exists("/data"):
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////data/lead_engine.db")
-else:
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lead_engine.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set. "
+        "For local dev, add it to your .env file. "
+        "For Streamlit Cloud, add it to your app Secrets."
+    )
+
+# pool_pre_ping: reconnects dropped connections (important for Neon serverless)
+# pool_recycle: recycles connections before Neon's 5-min idle timeout
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():

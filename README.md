@@ -12,7 +12,7 @@ An elite, multi-agent lead generation engine designed for high-volume discovery 
 - **API Key Pool & Rotation**: Built-in `KeyManager` for rotating through multiple SerpAPI, Firecrawl, and OpenRouter keys.
 - **Autonomous Deep Hunting**: Automatically fills data gaps (missing emails/LinkedIn) for high-value leads.
 - **Dynamic Feedback Loop**: Learns from operator feedback (Good/Junk) to refine ICP scoring.
-- **Local-First Architecture**: SQLite database for persistent storage and privacy.
+- **Persistent Cloud Database**: [Neon](https://neon.tech) serverless PostgreSQL — free tier, always-on.
 - **Sleek Operator Dashboard**: Real-time monitoring and chat-based control via Streamlit.
 
 ## 🛠️ Tech Stack
@@ -20,8 +20,8 @@ An elite, multi-agent lead generation engine designed for high-volume discovery 
 - **Core Logic**: Python (Asyncio)
 - **Intelligence**: OpenRouter / OpenAI API
 - **Scraping**: SerpAPI, Firecrawl
-- **UI**: Streamlit
-- **Persistence**: SQLAlchemy + SQLite
+- **UI**: Streamlit (deployed on [Streamlit Community Cloud](https://streamlit.io/cloud))
+- **Persistence**: SQLAlchemy + [Neon](https://neon.tech) PostgreSQL
 
 ## 🚦 Quick Start
 
@@ -44,7 +44,7 @@ An elite, multi-agent lead generation engine designed for high-volume discovery 
 
 4. **Run**:
    ```bash
-   python3 -m streamlit run lead_engine/ui/app.py
+   streamlit run streamlit_app.py
    ```
 
 ## 📈 Volume & Cost Analytics

@@ -1,12 +1,12 @@
 streamlit
 sqlalchemy
+psycopg2-binary
 pydantic
 pydantic-settings
 httpx
 aiohttp
 python-dotenv
 openai
-sqlalchemy-utils
 pandas
 openpyxl
 gspread
