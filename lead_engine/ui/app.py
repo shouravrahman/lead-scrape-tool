@@ -84,11 +84,10 @@ tab1, tab2, tab3, tab4 = st.tabs(["📊 Stats", "🎯 Leads", "🔍 Search", "�
 with tab1:
     st.header("System Health & Yield")
     
-    db = SessionLocal()
-    total_leads = db.query(Lead).count()
-    hot_leads = db.query(Lead).filter(Lead.score >= 15).count()
-    active_jobs = db.query(Job).filter(Job.status.in_(['processing_intent', 'scraping'])).all()
-    db.close()
+    with SessionLocal() as db:
+        total_leads = db.query(Lead).count()
+        hot_leads = db.query(Lead).filter(Lead.score >= 15).count()
+        active_jobs = db.query(Job).filter(Job.status.in_(['processing_intent', 'scraping'])).all()
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -139,68 +138,67 @@ with tab2:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    db = SessionLocal()
-    if st.session_state.get('filtered_leads') is not None:
-        leads = st.session_state.filtered_leads
-    else:
-        leads = db.query(Lead).order_by(desc(Lead.score)).all()
-    
-    if leads:
-        for l in leads:
-            is_hiring = "hiring" in str(l.raw_data).lower() or l.hiring_signal
-            is_launch = any(k in str(l.raw_data).lower() for k in ["launch", "product hunt", "beta"])
-            
-            badges = []
-            if is_hiring: badges.append('<span class="badge badge-hiring">💼 HIRING</span>')
-            if is_launch: badges.append('<span class="badge badge-launch">🚀 LAUNCH</span>')
-            if l.tech_stack: badges.append(f'<span class="badge badge-tech">🛠️ {l.tech_stack[0]}</span>')
-            
-            badge_html = " ".join(badges)
-            
-            # Card Container
-            st.markdown(f"""
-            <div class="premium-card">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
-                    <div>
-                        <div style="font-family:'Outfit',sans-serif; font-size:20px; font-weight:700; color:{st.session_state.theme == 'dark' and '#FFFFFF' or '#0F172A'}; margin-bottom:4px;">{l.name}</div>
-                        <div style="color:#10B981; font-weight:600; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">{l.company}</div>
+    with SessionLocal() as db:
+        if st.session_state.get('filtered_leads') is not None:
+            leads = st.session_state.filtered_leads
+        else:
+            leads = db.query(Lead).order_by(desc(Lead.score)).all()
+        
+        if leads:
+            for l in leads:
+                is_hiring = "hiring" in str(l.raw_data).lower() or l.hiring_signal
+                is_launch = any(k in str(l.raw_data).lower() for k in ["launch", "product hunt", "beta"])
+                
+                badges = []
+                if is_hiring: badges.append('<span class="badge badge-hiring">💼 HIRING</span>')
+                if is_launch: badges.append('<span class="badge badge-launch">🚀 LAUNCH</span>')
+                if l.tech_stack: badges.append(f'<span class="badge badge-tech">🛠️ {l.tech_stack[0]}</span>')
+                
+                badge_html = " ".join(badges)
+                
+                # Card Container
+                st.markdown(f"""
+                <div class="premium-card">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+                        <div>
+                            <div style="font-family:'Outfit',sans-serif; font-size:20px; font-weight:700; color:{st.session_state.theme == 'dark' and '#FFFFFF' or '#0F172A'}; margin-bottom:4px;">{l.name}</div>
+                            <div style="color:#10B981; font-weight:600; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">{l.company}</div>
+                        </div>
+                        <div style="background:#10B98122; color:#10B981; padding:6px 12px; border-radius:8px; font-weight:800; font-size:14px;">{l.score} PTS</div>
                     </div>
-                    <div style="background:#10B98122; color:#10B981; padding:6px 12px; border-radius:8px; font-weight:800; font-size:14px;">{l.score} PTS</div>
+                    <div style="margin-bottom:20px; display:flex; gap:8px; flex-wrap:wrap;">{badge_html}</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; font-size: 13px; color:{st.session_state.theme == 'dark' and '#E2E8F0' or '#334155'};">
+                        <div>
+                            <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">EMAIL</div>
+                            <div style="font-weight:600;">{l.email if l.email else '<span style="color:#D97706;">Hunting...</span>'}</div>
+                        </div>
+                        <div>
+                            <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">SOCIAL</div>
+                            <div style="font-weight:600;"><a href="{l.linkedin_url}" target="_blank" style="color:inherit; text-decoration:none;">{l.linkedin_url if l.linkedin_url else 'N/A'}</a></div>
+                        </div>
+                        <div>
+                            <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">TECH STACK</div>
+                            <div style="font-weight:600;">{', '.join(l.tech_stack) if l.tech_stack else 'N/A'}</div>
+                        </div>
+                    </div>
                 </div>
-                <div style="margin-bottom:20px; display:flex; gap:8px; flex-wrap:wrap;">{badge_html}</div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; font-size: 13px; color:{st.session_state.theme == 'dark' and '#E2E8F0' or '#334155'};">
-                    <div>
-                        <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">EMAIL</div>
-                        <div style="font-weight:600;">{l.email if l.email else '<span style="color:#D97706;">Hunting...</span>'}</div>
-                    </div>
-                    <div>
-                        <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">SOCIAL</div>
-                        <div style="font-weight:600;"><a href="{l.linkedin_url}" target="_blank" style="color:inherit; text-decoration:none;">{l.linkedin_url if l.linkedin_url else 'N/A'}</a></div>
-                    </div>
-                    <div>
-                        <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">TECH STACK</div>
-                        <div style="font-weight:600;">{', '.join(l.tech_stack) if l.tech_stack else 'N/A'}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Action Buttons (Balanced for mobile/desktop)
-            c1, c2, c3 = st.columns(3)
-            if c1.button("✅ Good", key=f"good_{l.id}"):
-                l.vetting_status = 'good'
-                db.commit()
-                st.rerun()
-            if c2.button("❌ Junk", key=f"junk_{l.id}"):
-                l.vetting_status = 'junk'
-                db.commit()
-                st.rerun()
-            if c3.button("📤 Sync", key=f"sync_{l.id}"):
-                st.session_state.supervisor.sheets.sync_lead(l)
-                st.success("Synced!")
-    else:
-        st.info("No leads found yet. Start a scan to find leads!")
-    db.close()
+                """, unsafe_allow_html=True)
+                
+                # Action Buttons (Balanced for mobile/desktop)
+                c1, c2, c3 = st.columns(3)
+                if c1.button("✅ Good", key=f"good_{l.id}"):
+                    l.vetting_status = 'good'
+                    db.commit()
+                    st.rerun()
+                if c2.button("❌ Junk", key=f"junk_{l.id}"):
+                    l.vetting_status = 'junk'
+                    db.commit()
+                    st.rerun()
+                if c3.button("📤 Sync", key=f"sync_{l.id}"):
+                    st.session_state.supervisor.sheets.sync_lead(l)
+                    st.success("Synced!")
+        else:
+            st.info("No leads found yet. Start a scan to find leads!")
 
 with tab3:
     st.header("🔍 Start New Search")
@@ -226,25 +224,23 @@ with tab3:
     
     # --- Search History ---
     st.subheader("📜 Search History")
-    db = SessionLocal()
-    past_jobs = db.query(Job).order_by(desc(Job.created_at)).all()
-    
-    if past_jobs:
-        # Create a clean history table 
-        history_data = []
-        for j in past_jobs:
-            status_emoji = "✅" if j.status == 'completed' else "⏳" if j.status == 'scraping' else "❌" if j.status == 'failed' else "🛑"
-            history_data.append({
-                "Task": j.name,
-                "Status": f"{status_emoji} {j.status.upper()}",
-                "Leads": j.leads_found,
-                "Goal": j.max_leads,
-                "Date": j.created_at.strftime("%Y-%m-%d %H:%M")
-            })
-        st.dataframe(history_data, use_container_width=True, hide_index=True)
-    else:
-        st.info("No past searches found.")
-    db.close()
+    with SessionLocal() as db:
+        past_jobs = db.query(Job).order_by(desc(Job.created_at)).all()
+        
+        if past_jobs:
+            history_data = []
+            for j in past_jobs:
+                status_emoji = "✅" if j.status == 'completed' else "⏳" if j.status == 'scraping' else "❌" if j.status == 'failed' else "🛑"
+                history_data.append({
+                    "Task": j.name,
+                    "Status": f"{status_emoji} {j.status.upper()}",
+                    "Leads": j.leads_found,
+                    "Goal": j.max_leads,
+                    "Date": j.created_at.strftime("%Y-%m-%d %H:%M")
+                })
+            st.dataframe(history_data, use_container_width=True, hide_index=True)
+        else:
+            st.info("No past searches found.")
 
     if st.session_state.get("messages", []):
         st.divider()
@@ -255,9 +251,8 @@ with tab3:
 with tab4:
     st.header("📜 Activity Logs")
 
-    db = SessionLocal()
-    logs = db.query(AgentLog).order_by(desc(AgentLog.timestamp)).limit(50).all()
-    db.close()
+    with SessionLocal() as db:
+        logs = db.query(AgentLog).order_by(desc(AgentLog.timestamp)).limit(50).all()
     
     if not logs:
         st.info("No logs captured yet. Launch a mission to see the agents in action!")
