@@ -2,6 +2,7 @@ import os
 import logging
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
+from lead_engine.security.encryption import encrypt_env_keys
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -37,9 +38,11 @@ class KeyManager:
 
     def _load_keys_from_env(self):
         """
-        Loads keys from .env variables.
-        Supports COMMA SEPARATED lists for pooling.
-        Example: SERP_API_KEYS=key1,key2
+        Loads and decrypts keys from .env variables.
+        Supports COMMA SEPARATED encrypted or plain-text lists.
+        
+        For encrypted keys, format: SERP_API_KEYS=encrypted:gAAAAAB...,encrypted:gAAAAAB...
+        For plain keys (legacy): SERP_API_KEYS=key1,key2
         """
         mapping = {
             "serpapi": "SERP_API_KEYS",
@@ -61,16 +64,26 @@ class KeyManager:
         }
 
         for service, env_var in mapping.items():
-            # Try comma-separated list first
-            val = os.getenv(env_var)
-            if val:
-                self.keys[service].extend([k.strip() for k in val.split(",") if k.strip()])
+            # Try encrypted/mixed list first
+            decrypted_keys = encrypt_env_keys(env_var)
+            if decrypted_keys:
+                self.keys[service].extend(decrypted_keys)
                 logger.info(f"KeyManager: Loaded {len(self.keys[service])} keys for {service}")
             
             # Try fallback single key
             fallback_val = os.getenv(fallbacks[service])
             if fallback_val and fallback_val not in self.keys[service]:
-                self.keys[service].append(fallback_val.strip())
+                # Check if it's encrypted
+                if fallback_val.startswith("encrypted:"):
+                    from lead_engine.security.encryption import SecretManager
+                    try:
+                        decrypted = SecretManager.decrypt(fallback_val[10:])
+                        self.keys[service].append(decrypted)
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt fallback key for {service}: {e}")
+                else:
+                    logger.warning(f"⚠️  Plain-text key detected for {service}. Encrypt it!")
+                    self.keys[service].append(fallback_val.strip())
                 logger.info(f"KeyManager: Added fallback key for {service}")
 
     def get_key(self, service: str) -> Optional[str]:

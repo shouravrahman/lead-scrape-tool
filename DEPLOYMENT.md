@@ -2,6 +2,16 @@
 
 This guide covers local and production deployment for the Autonomous Lead Intelligence System.
 
+---
+
+## 📋 Quick Links
+
+- **🌐 [Streamlit Cloud Deployment](./STREAMLIT_CLOUD_GUIDE.md)** ← Start here for cloud
+- **💻 Local Deployment** (see below)
+- **🔐 [Security](./SECURITY.md)**
+
+---
+
 ## 💻 Local Deployment (Recommended for Development)
 
 ### Prerequisites

@@ -1,9 +1,23 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON, ForeignKey, create_engine, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy_utils import StringEncryptedType
+import os
 
 Base = declarative_base()
+
+# Get encryption key for database fields
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+if ENCRYPTION_KEY:
+    EncryptedString = lambda: StringEncryptedType(String, ENCRYPTION_KEY)
+else:
+    # Fallback: use regular String if encryption key not available
+    # ⚠️ This is not secure! Only for development.
+    def EncryptedString():
+        import logging
+        logging.warning("⚠️  ENCRYPTION_KEY not set. Using plaintext database. Set ENCRYPTION_KEY immediately!")
+        return String
 
 class Lead(Base):
     __tablename__ = 'leads'
@@ -11,11 +25,13 @@ class Lead(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     company = Column(String)
-    email = Column(String, unique=True)
-    linkedin_url = Column(String)
+    # 🔐 Encrypt PII
+    email = Column(EncryptedString(), unique=True)
+    linkedin_url = Column(EncryptedString())
     website = Column(String)
     tech_stack = Column(JSON)  # List of technologies
-    hiring_signal = Column(Text)
+    # 🔐 Encrypt hiring signal (may contain scraped personal data)
+    hiring_signal = Column(EncryptedString())
     score = Column(Float, default=0.0)
     status = Column(String, default='pending')  # pending, contacted, ignored, personal_outreach
     vetting_status = Column(String, default='unvetted')  # unvetted, good, junk
@@ -26,6 +42,12 @@ class Lead(Base):
     job_id = Column(Integer, ForeignKey('jobs.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        Index('idx_lead_job_id', 'job_id'),
+        Index('idx_lead_score', 'score'),
+        Index('idx_lead_status', 'status'),
+    )
 
 class Job(Base):
     __tablename__ = 'jobs'
@@ -67,6 +89,28 @@ class ICPSettings(Base):
     key = Column(String, unique=True)
     value = Column(JSON)
     description = Column(String)
+
+
+class AuditLog(Base):
+    """Immutable audit trail for compliance and security monitoring"""
+    __tablename__ = 'audit_logs'
+    
+    id = Column(Integer, primary_key=True)
+    action = Column(String(50), nullable=False)  # 'CREATE_JOB', 'EXPORT_LEAD', 'ROTATE_KEY', etc.
+    user = Column(String(100), nullable=False)  # Username or 'system'
+    resource_type = Column(String(50))  # 'lead', 'job', 'key', etc.
+    resource_id = Column(String(100))
+    # Details stored encrypted if sensitive
+    details = Column(JSON)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ip_address = Column(String(50))  # Optional: for cloud deployments
+    
+    __table_args__ = (
+        Index('idx_audit_timestamp', 'timestamp'),
+        Index('idx_audit_action', 'action'),
+        Index('idx_audit_user', 'user'),
+        Index('idx_audit_resource', 'resource_type', 'resource_id'),
+    )
 
 # Database Setup
 import os

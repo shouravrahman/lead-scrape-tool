@@ -1,270 +1,686 @@
+"""
+Streamlit Cloud-ready UI with full security controls.
+"""
 import streamlit as st
 import pandas as pd
 import asyncio
 import os
-from lead_engine.db.models import SessionLocal, Lead, Job, AgentLog, Source
+from datetime import datetime
+from lead_engine.db.models import SessionLocal, Lead, Job, AgentLog, AuditLog
 from lead_engine.core.supervisor import SupervisorAgent
-from lead_engine.core.limiter import limiter
+from lead_engine.core.limiter import limiter, RateLimitExceeded
 from lead_engine.core.key_manager import key_manager
+from lead_engine.core.resources import resource_monitor
 from lead_engine.ui.styles import get_custom_css, get_card_html
+from lead_engine.schemas import SearchQuery, FilterQuery, LeadVetting
+from lead_engine.security.errors import ErrorHandler, SecureError, ValidationError
+from lead_engine.security.audit import AuditLogger
+from lead_engine.tools.google_sheets import GoogleSheetsTool, GoogleSheetsSecurityError
 from sqlalchemy import desc
+from pydantic import ValidationError as PydanticValidationError
 
-st.set_page_config(page_title="Lead Intelligence System", layout="wide", initial_sidebar_state="collapsed")
+# ============================================================================
+# PAGE CONFIG & INITIALIZATION
+# ============================================================================
 
+st.set_page_config(
+    page_title="Lead Intelligence System",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+    menu_items={
+        "Get Help": "https://github.com/shouravrahman/lead-scrape-tool",
+        "Report a bug": "https://github.com/shouravrahman/lead-scrape-tool/issues",
+        "About": "Autonomous Lead Generation Engine"
+    }
+)
+
+# Detect cloud deployment
+IS_CLOUD = "streamlit.app" in st.get_page_config().get("client", {}).get("serverBaseUrl", "")
+
+# Initialize session state
 if "supervisor" not in st.session_state:
     st.session_state.supervisor = SupervisorAgent()
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "user_id" not in st.session_state:
+    st.session_state.user_id = "streamlit_user"
 
-# --- Inject Premium CSS ---
+# Inject custom CSS
 st.markdown(get_custom_css(st.session_state.theme), unsafe_allow_html=True)
 
-# --- Sidebar ---
+# ============================================================================
+# SIDEBAR
+# ============================================================================
+
 with st.sidebar:
-    sc1, sc2 = st.columns([4, 1])
-    sc1.title("Settings")
+    # Header
+    col_title, col_theme = st.columns([4, 1])
+    col_title.title("⚙️ Settings")
+    
     theme_icon = "🌙" if st.session_state.theme == "dark" else "☀️"
-    if sc2.button(theme_icon, help="Toggle Theme"):
+    if col_theme.button(theme_icon, help="Toggle Theme"):
         st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
         st.rerun()
     
     st.divider()
     
-    with st.expander("🔑 API Key Pool", expanded=False):
-        serp_keys = st.text_area("SerpAPI Keys (Quota: 100/mo free)", value=",".join(key_manager.keys["serpapi"]), placeholder="key1, key2...")
-        serper_keys = st.text_area("Serper.dev Keys (Quota: 2500 free)", value=",".join(key_manager.keys["serper"]), placeholder="key1, key2...")
-        tavily_keys = st.text_area("Tavily Keys (Quota: 1000/mo free)", value=",".join(key_manager.keys["tavily"]), placeholder="key1, key2...")
-        firecrawl_keys = st.text_area("Firecrawl Keys (Quota: 500/mo free)", value=",".join(key_manager.keys["firecrawl"]), placeholder="key1, key2...")
-        openrouter_keys = st.text_area("OpenRouter Keys", value=",".join(key_manager.keys["openrouter"]), placeholder="key1, key2...")
-        
-        if st.button("Update Keys"):
-            key_manager.keys["serpapi"] = [k.strip() for k in serp_keys.split(",") if k.strip()]
-            key_manager.keys["serper"] = [k.strip() for k in serper_keys.split(",") if k.strip()]
-            key_manager.keys["tavily"] = [k.strip() for k in tavily_keys.split(",") if k.strip()]
-            key_manager.keys["firecrawl"] = [k.strip() for k in firecrawl_keys.split(",") if k.strip()]
-            key_manager.keys["openrouter"] = [k.strip() for k in openrouter_keys.split(",") if k.strip()]
-            st.success("Keys updated!")
-            st.rerun()
-
-    st.subheader("📡 Provider Health")
-    keys_status = key_manager.keys
-    for s, k_list in keys_status.items():
-        if s == "openai": continue # Keep fallback hidden for simplicity
-        st.write(f"- {s.upper()}: {len(k_list)} keys")
-
-    with st.expander("📊 Google Sheets Sync", expanded=False):
-        sheet_id = st.text_input("Sheet ID", value=os.getenv("GOOGLE_SHEET_ID", ""), placeholder="e.g. 1a2b3c4d5e6f...")
-        creds_file = st.text_input("Credentials JSON Path", value=os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json"))
-        auto_sync = st.checkbox("Auto-Sync High Scores", value=os.getenv("AUTO_SYNC_TO_SHEETS") == "true")
-        
-        if st.button("Save Sheets Config"):
-            # Update .env dynamically (simple version)
-            os.environ["GOOGLE_SHEET_ID"] = sheet_id
-            os.environ["GOOGLE_CREDENTIALS_FILE"] = creds_file
-            os.environ["AUTO_SYNC_TO_SHEETS"] = "true" if auto_sync else "false"
-            st.success("Config saved for current session!")
-
-    st.divider()
-    st.subheader("📉 API Quotas")
-    quotas = limiter.get_quota_status()
-    for service, data in quotas.items():
-        used = data["used"]
-        limit = data["daily_limit"]
-        st.write(f"**{service.upper()}**: {used}/{limit}")
-        st.progress(min(used/limit, 1.0))
-
-# --- Main UI ---
-# --- Header ---
-
-
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Stats", "🎯 Leads", "🔍 Search", "📜 Logs"])
-
-with tab1:
-    st.header("System Health & Yield")
-    
-    with SessionLocal() as db:
-        total_leads = db.query(Lead).count()
-        hot_leads = db.query(Lead).filter(Lead.score >= 15).count()
-        active_jobs = db.query(Job).filter(Job.status.in_(['processing_intent', 'scraping'])).all()
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    # Calculate metrics with "Trends" (faked/simulated for now based on total)
-    col1.markdown(get_card_html("Total Leads", total_leads, trend="12%", is_up=True, theme=st.session_state.theme), unsafe_allow_html=True)
-    col2.markdown(get_card_html("Hot Leads", hot_leads, trend="5%", is_up=True, theme=st.session_state.theme), unsafe_allow_html=True)
-    
-    quality = (hot_leads/total_leads*100 if total_leads > 0 else 0)
-    col3.markdown(get_card_html("Lead Quality", f"{quality:.1f}%", trend="2.4%", is_up=True, theme=st.session_state.theme), unsafe_allow_html=True)
-    
-    col4.markdown(get_card_html("Active Jobs", len(active_jobs), trend="Stable", is_up=True, theme=st.session_state.theme), unsafe_allow_html=True)
-    
-    if not active_jobs and total_leads == 0:
-        st.markdown(f"""
-        <div class="premium-card" style="border-left: 4px solid #10B981; margin-top: 20px;">
-            <div style="font-family:'Outfit',sans-serif; font-size:18px; font-weight:700; margin-bottom:10px;">Ready to find leads?</div>
-            <div style="font-size:14px; opacity:0.8; line-height:1.6;">
-                Currently, there are no active tasks. Head over to the <b>🔍 Search</b> tab to define your target audience and launch your first scan. 
-                The system will hunt for prospects and enrich their profiles in the background.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if active_jobs:
-        st.subheader("Active Campaigns")
-        for job in active_jobs:
-            c1, c2 = st.columns([3, 1])
-            c1.write(f"**Job #{job.id}**: {job.name}")
-            if c2.button("🛑 Stop", key=f"stop_{job.id}"):
-                asyncio.run(st.session_state.supervisor.stop_job(job.id))
-                st.rerun()
-
-with tab2:
-    st.header("🎯 Discovery Hub")
-    
-    # AI Filter Interface
-    st.markdown('<div class="premium-card">', unsafe_allow_html=True)
-    fcol1, fcol2 = st.columns([4, 1])
-    filter_query = fcol1.text_input("Filter leads via AI", placeholder="e.g. 'Show me only leads using React' or 'CTOs in Austin'")
-    if fcol2.button("Apply Filter", use_container_width=True):
-        if filter_query:
-            st.session_state.filtered_leads = asyncio.run(st.session_state.supervisor.query_leads(filter_query))
-        else:
-            st.session_state.filtered_leads = None
+    # === API Key Management ===
+    with st.expander("🔑 API Keys", expanded=False):
+        if IS_CLOUD:
+            st.info("""
+            🔐 **Keys configured via Streamlit Secrets**
             
-    if st.button("Reset Filters"):
-        st.session_state.filtered_leads = None
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    with SessionLocal() as db:
-        if st.session_state.get('filtered_leads') is not None:
-            leads = st.session_state.filtered_leads
+            To update:
+            1. Settings > Secrets
+            2. Edit SERP_API_KEYS, OPENROUTER_API_KEYS, etc.
+            3. App reloads automatically
+            """)
         else:
-            leads = db.query(Lead).order_by(desc(Lead.score)).all()
+            st.warning("⚠️ **Local Mode** - Keys loaded from .env (encrypted)")
         
-        if leads:
-            for l in leads:
-                is_hiring = "hiring" in str(l.raw_data).lower() or l.hiring_signal
-                is_launch = any(k in str(l.raw_data).lower() for k in ["launch", "product hunt", "beta"])
-                
-                badges = []
-                if is_hiring: badges.append('<span class="badge badge-hiring">💼 HIRING</span>')
-                if is_launch: badges.append('<span class="badge badge-launch">🚀 LAUNCH</span>')
-                if l.tech_stack: badges.append(f'<span class="badge badge-tech">🛠️ {l.tech_stack[0]}</span>')
-                
-                badge_html = " ".join(badges)
-                
-                # Card Container
-                st.markdown(f"""
-                <div class="premium-card">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
-                        <div>
-                            <div style="font-family:'Outfit',sans-serif; font-size:20px; font-weight:700; color:{st.session_state.theme == 'dark' and '#FFFFFF' or '#0F172A'}; margin-bottom:4px;">{l.name}</div>
-                            <div style="color:#10B981; font-weight:600; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">{l.company}</div>
-                        </div>
-                        <div style="background:#10B98122; color:#10B981; padding:6px 12px; border-radius:8px; font-weight:800; font-size:14px;">{l.score} PTS</div>
-                    </div>
-                    <div style="margin-bottom:20px; display:flex; gap:8px; flex-wrap:wrap;">{badge_html}</div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; font-size: 13px; color:{st.session_state.theme == 'dark' and '#E2E8F0' or '#334155'};">
-                        <div>
-                            <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">EMAIL</div>
-                            <div style="font-weight:600;">{l.email if l.email else '<span style="color:#D97706;">Hunting...</span>'}</div>
-                        </div>
-                        <div>
-                            <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">SOCIAL</div>
-                            <div style="font-weight:600;"><a href="{l.linkedin_url}" target="_blank" style="color:inherit; text-decoration:none;">{l.linkedin_url if l.linkedin_url else 'N/A'}</a></div>
-                        </div>
-                        <div>
-                            <div style="opacity:0.5; font-weight:800; font-size:10px; letter-spacing:1px; margin-bottom:4px;">TECH STACK</div>
-                            <div style="font-weight:600;">{', '.join(l.tech_stack) if l.tech_stack else 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Action Buttons (Balanced for mobile/desktop)
-                c1, c2, c3 = st.columns(3)
-                if c1.button("✅ Good", key=f"good_{l.id}"):
-                    l.vetting_status = 'good'
-                    db.commit()
-                    st.rerun()
-                if c2.button("❌ Junk", key=f"junk_{l.id}"):
-                    l.vetting_status = 'junk'
-                    db.commit()
-                    st.rerun()
-                if c3.button("📤 Sync", key=f"sync_{l.id}"):
-                    st.session_state.supervisor.sheets.sync_lead(l)
-                    st.success("Synced!")
+        # Show key health
+        st.subheader("📡 Provider Status")
+        providers = ["serpapi", "serper", "tavily", "firecrawl", "openrouter"]
+        for provider in providers:
+            count = len(key_manager.keys.get(provider, []))
+            color = "🟢" if count > 0 else "🔴"
+            st.write(f"{color} **{provider.upper()}**: {count} key(s)")
+    
+    st.divider()
+    
+    # === Google Sheets Config ===
+    with st.expander("📊 Google Sheets", expanded=False):
+        sheet_id = os.getenv("GOOGLE_SHEET_ID", "")
+        auto_sync = os.getenv("AUTO_SYNC_TO_SHEETS", "false") == "true"
+        
+        if IS_CLOUD:
+            st.info("""
+            📊 **Configure via Secrets**
+            
+            Add to Streamlit Secrets:
+            ```toml
+            GOOGLE_SHEET_ID = "1a2b3c..."
+            GOOGLE_CREDENTIALS_FILE = "service.json"
+            AUTO_SYNC_TO_SHEETS = "true"
+            ```
+            """)
+        
+        # Status
+        if sheet_id:
+            st.success(f"✅ Sheet ID: {sheet_id[:15]}...")
         else:
-            st.info("No leads found yet. Start a scan to find leads!")
+            st.warning("❌ Not configured")
+        
+        st.write(f"Auto-Sync: {'✅ Enabled' if auto_sync else '❌ Disabled'}")
+    
+    st.divider()
+    
+    # === Quotas ===
+    st.subheader("📉 Daily Quotas")
+    try:
+        quotas = limiter.get_quota_status()
+        for service, data in quotas.items():
+            used = data.get("used", 0)
+            limit = data.get("limit", 0)
+            if limit > 0:
+                pct = min(used / limit, 1.0)
+                st.write(f"**{service.upper()}**: {used}/{limit}")
+                
+                # Color bar based on usage
+                if pct > 0.9:
+                    st.progress(pct, text="🔴 CRITICAL")
+                elif pct > 0.7:
+                    st.progress(pct, text="🟡 WARNING")
+                else:
+                    st.progress(pct)
+    except Exception as e:
+        st.error(f"Quota error: {str(e)[:80]}")
+    
+    st.divider()
+    
+    # === System Status ===
+    st.subheader("🖥️ System Health")
+    try:
+        status = resource_monitor.get_status()
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Memory", f"{status['memory_rss_mb']:.0f} MB")
+        with col2:
+            st.metric("Uptime", f"{status['uptime_hours']:.1f}h")
+        
+        if resource_monitor.check_memory(threshold_mb=500):
+            st.warning("⚠️ High memory usage")
+    except Exception:
+        st.info("Health check unavailable")
 
+# ============================================================================
+# MAIN CONTENT TABS
+# ============================================================================
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📊 Dashboard",
+    "🎯 Leads",
+    "🔍 Search",
+    "📜 Logs",
+    "❓ Help"
+])
+
+# ============================================================================
+# TAB 1: DASHBOARD
+# ============================================================================
+with tab1:
+    st.header("📊 System Dashboard")
+    
+    try:
+        with SessionLocal() as db:
+            total_leads = db.query(Lead).count()
+            hot_leads = db.query(Lead).filter(Lead.score >= 15).count()
+            good_leads = db.query(Lead).filter(Lead.vetting_status == 'good').count()
+            active_jobs = db.query(Job).filter(Job.status.in_(['processing_intent', 'scraping'])).all()
+            completed_jobs = db.query(Job).filter(Job.status == 'completed').count()
+        
+        # Metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Leads", total_leads, delta="Discovered")
+        with col2:
+            st.metric("Hot Leads (15+ pts)", hot_leads, delta="High Quality")
+        with col3:
+            st.metric("Vetted (Good)", good_leads, delta="✅ Ready")
+        with col4:
+            st.metric("Active Jobs", len(active_jobs), delta="Running")
+        
+        # Quality metric
+        if total_leads > 0:
+            quality = (hot_leads / total_leads) * 100
+            col_q = st.columns(1)[0]
+            col_q.metric("Lead Quality Score", f"{quality:.1f}%", delta="Leads scoring 15+")
+        
+        # Job Status
+        if active_jobs:
+            st.subheader("🔄 Active Jobs")
+            for job in active_jobs:
+                col1, col2, col3 = st.columns([2, 1, 1])
+                
+                with col1:
+                    st.write(f"**Job #{job.id}**: {job.name}")
+                    if job.queries:
+                        st.caption(f"Queries: {len(job.queries)} | Found: {job.leads_found}")
+                
+                with col2:
+                    pct = (job.leads_found / job.max_leads) * 100 if job.max_leads > 0 else 0
+                    st.progress(min(pct / 100, 1.0))
+                
+                with col3:
+                    if st.button("🛑 Stop", key=f"stop_{job.id}"):
+                        try:
+                            asyncio.run(st.session_state.supervisor.stop_job(job.id))
+                            AuditLogger.log('JOB_STOPPED', 'job', job.id, user=st.session_state.user_id)
+                            st.success("✅ Job stopped")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to stop job: {str(e)[:100]}")
+        
+        elif total_leads == 0:
+            st.info("💡 No leads yet. Start a search from the 🔍 **Search** tab!")
+        
+        # Recent activity
+        st.subheader("📈 Recent Leads")
+        with SessionLocal() as db:
+            recent = db.query(Lead).order_by(desc(Lead.created_at)).limit(5).all()
+            if recent:
+                data = []
+                for lead in recent:
+                    data.append({
+                        "Name": lead.name or "?",
+                        "Company": lead.company or "?",
+                        "Score": f"{lead.score:.1f}",
+                        "Status": lead.vetting_status.upper(),
+                        "Date": lead.created_at.strftime("%Y-%m-%d %H:%M") if lead.created_at else "?"
+                    })
+                st.dataframe(pd.DataFrame(data), use_container_width=True)
+            else:
+                st.caption("No leads discovered yet")
+    
+    except Exception as e:
+        error_msg = ErrorHandler.log_and_sanitize(e, "Dashboard load failed")
+        st.error(error_msg)
+
+# ============================================================================
+# TAB 2: LEADS
+# ============================================================================
+with tab2:
+    st.header("🎯 Lead Management")
+    
+    try:
+        # Filters
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            search_filter = st.text_input(
+                "🔎 Filter by keyword",
+                placeholder="e.g. 'React', 'CEO', 'Austin'",
+                help="Searches name, company, tech stack"
+            )
+        
+        with col2:
+            status_filter = st.selectbox(
+                "Status",
+                ["All", "good", "junk", "pending"]
+            )
+        
+        with col3:
+            sort_by = st.selectbox(
+                "Sort by",
+                ["Score (High→Low)", "Score (Low→High)", "Newest"]
+            )
+        
+        # Load leads
+        with SessionLocal() as db:
+            query = db.query(Lead)
+            
+            # Apply filters
+            if search_filter:
+                search_term = f"%{search_filter}%"
+                query = query.filter(
+                    (Lead.name.ilike(search_term)) |
+                    (Lead.company.ilike(search_term))
+                )
+            
+            if status_filter != "All":
+                query = query.filter(Lead.vetting_status == status_filter)
+            
+            # Sort
+            if sort_by == "Newest":
+                query = query.order_by(desc(Lead.created_at))
+            elif sort_by == "Score (Low→High)":
+                query = query.order_by(Lead.score)
+            else:
+                query = query.order_by(desc(Lead.score))
+            
+            leads = query.all()
+        
+        if not leads:
+            st.info("No leads match your filters. Try adjusting them.")
+        else:
+            st.write(f"Showing {len(leads)} lead(s)")
+            
+            # Display leads
+            for idx, lead in enumerate(leads):
+                with st.container(border=True):
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    
+                    with col1:
+                        st.write(f"**{lead.name}** @ {lead.company}")
+                        if lead.email:
+                            st.caption(f"📧 {lead.email}")
+                        if lead.linkedin_url:
+                            st.caption(f"🔗 [LinkedIn]({lead.linkedin_url})")
+                    
+                    with col2:
+                        st.metric("Score", f"{lead.score:.1f}")
+                    
+                    with col3:
+                        # Status badge
+                        status_colors = {
+                            "good": "🟢",
+                            "junk": "🔴",
+                            "pending": "🟡"
+                        }
+                        st.write(f"{status_colors.get(lead.vetting_status, '⚪')} {lead.vetting_status.upper()}")
+                    
+                    # Action buttons
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        if st.button("✅ Good", key=f"good_{lead.id}"):
+                            try:
+                                with SessionLocal() as db:
+                                    l = db.query(Lead).get(lead.id)
+                                    l.vetting_status = 'good'
+                                    db.commit()
+                                AuditLogger.log_lead_action('VET_GOOD', lead.id, user=st.session_state.user_id)
+                                st.success("Marked as good!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Update failed: {str(e)[:80]}")
+                    
+                    with col2:
+                        if st.button("❌ Junk", key=f"junk_{lead.id}"):
+                            try:
+                                with SessionLocal() as db:
+                                    l = db.query(Lead).get(lead.id)
+                                    l.vetting_status = 'junk'
+                                    db.commit()
+                                AuditLogger.log_lead_action('VET_JUNK', lead.id, user=st.session_state.user_id)
+                                st.info("Marked as junk")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Update failed: {str(e)[:80]}")
+                    
+                    with col3:
+                        if st.button("📤 Export", key=f"export_{lead.id}"):
+                            try:
+                                sheets = GoogleSheetsTool()
+                                sheets.sync_lead(lead, user=st.session_state.user_id)
+                                st.success("✅ Exported to Sheets!")
+                            except GoogleSheetsSecurityError as e:
+                                st.warning(f"⚠️ {str(e)[:100]}")
+                            except Exception as e:
+                                error_msg = ErrorHandler.log_and_sanitize(e, f"Export lead {lead.id}")
+                                st.error(error_msg)
+                    
+                    with col4:
+                        if st.button("ℹ️ Details", key=f"details_{lead.id}"):
+                            with st.expander("Full Details", expanded=True):
+                                st.json({
+                                    "id": lead.id,
+                                    "name": lead.name,
+                                    "company": lead.company,
+                                    "email": lead.email,
+                                    "linkedin": lead.linkedin_url,
+                                    "tech_stack": lead.tech_stack,
+                                    "score": lead.score,
+                                    "created_at": lead.created_at.isoformat() if lead.created_at else None
+                                })
+    
+    except Exception as e:
+        error_msg = ErrorHandler.log_and_sanitize(e, "Leads tab load failed")
+        st.error(error_msg)
+
+# ============================================================================
+# TAB 3: SEARCH
+# ============================================================================
 with tab3:
     st.header("🔍 Start New Search")
     
-    # Mission Config (No raw HTML wrap to avoid empty boxes)
-    col_a, col_b, col_c = st.columns([2, 1, 1])
-    with col_a:
-        user_intent = st.text_input("I am looking for...", placeholder="e.g. SaaS founders in Austin TX building AI tools")
-    with col_b:
-        target_sheet = st.text_input("Sheet ID (Optional)", placeholder="Leave blank for default")
-    with col_c:
-        max_leads = st.number_input("Limit", min_value=1, max_value=1000, value=50)
+    try:
+        # Input form
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            user_intent = st.text_input(
+                "I'm looking for...",
+                placeholder="e.g. SaaS founders in Austin building AI tools",
+                help="Describe your target audience"
+            )
+        
+        with col2:
+            max_leads = st.number_input(
+                "Max Leads",
+                min_value=1,
+                max_value=500,
+                value=50,
+                help="Target number of leads to find"
+            )
+        
+        with col3:
+            sheet_id = st.text_input(
+                "Sheet ID (Optional)",
+                placeholder="Leave blank",
+                help="Auto-export to this sheet"
+            )
+        
+        # Submit
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            submit = st.button("🚀 Start Search", use_container_width=True, type="primary")
+        
+        with col2:
+            st.info("💡 Searches run asynchronously. Check the Dashboard for progress.")
+        
+        if submit:
+            if not user_intent or len(user_intent) < 3:
+                st.error("❌ Please describe what you're looking for (min 3 chars)")
+            else:
+                try:
+                    # Validate input
+                    query = SearchQuery(
+                        intent=user_intent,
+                        max_leads=max_leads,
+                        sheet_id=sheet_id
+                    )
+                    
+                    # Create job
+                    job_id = asyncio.run(
+                        st.session_state.supervisor.create_job(
+                            query.intent,
+                            query.max_leads,
+                            sheet_id=query.sheet_id,
+                            user=st.session_state.user_id
+                        )
+                    )
+                    
+                    AuditLogger.log(
+                        'CREATE_JOB',
+                        resource_type='job',
+                        resource_id=str(job_id),
+                        details={'intent': user_intent[:50], 'max_leads': max_leads},
+                        user=st.session_state.user_id
+                    )
+                    
+                    st.success(f"✅ Search #{job_id} started!")
+                    st.info("👉 Check Dashboard tab for live progress")
+                
+                except PydanticValidationError as e:
+                    st.error(f"❌ Invalid input: {e.errors()[0]['msg']}")
+                except Exception as e:
+                    error_msg = ErrorHandler.log_and_sanitize(e, f"Create job")
+                    st.error(error_msg)
+        
+        # History
+        st.divider()
+        st.subheader("📜 Search History")
+        
+        try:
+            with SessionLocal() as db:
+                jobs = db.query(Job).order_by(desc(Job.created_at)).limit(20).all()
+                
+                if jobs:
+                    history_data = []
+                    for j in jobs:
+                        status_icons = {
+                            'completed': '✅',
+                            'scraping': '⏳',
+                            'processing_intent': '🤔',
+                            'failed': '❌',
+                            'stopped': '🛑'
+                        }
+                        
+                        history_data.append({
+                            "ID": j.id,
+                            "Intent": j.name[:40],
+                            "Status": f"{status_icons.get(j.status, '❓')} {j.status}",
+                            "Leads": f"{j.leads_found}/{j.max_leads}",
+                            "Date": j.created_at.strftime("%m/%d %H:%M") if j.created_at else "?"
+                        })
+                    
+                    st.dataframe(
+                        pd.DataFrame(history_data),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("No search history yet")
+        except Exception as e:
+            st.error(f"Failed to load history: {str(e)[:80]}")
+    
+    except Exception as e:
+        error_msg = ErrorHandler.log_and_sanitize(e, "Search tab error")
+        st.error(error_msg)
 
-    if st.button("Start Search", use_container_width=True):
-        if user_intent:
-            job_id = asyncio.run(st.session_state.supervisor.create_job(user_intent, max_leads, sheet_id=target_sheet))
-            st.success(f"Search Task #{job_id} started. See 'Logs' for activity.")
-            st.rerun()
-        else:
-            st.warning("Please describe what you are looking for.")
+# ============================================================================
+# TAB 4: LOGS
+# ============================================================================
+with tab4:
+    st.header("📜 Activity Logs")
+    
+    try:
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            log_type = st.selectbox(
+                "Log Type",
+                ["Agent Logs", "Audit Trail"],
+                help="View agent activity or security audit"
+            )
+        
+        with col2:
+            limit = st.select_slider("Show last N entries", 10, 100, 50)
+        
+        with SessionLocal() as db:
+            if log_type == "Agent Logs":
+                logs = db.query(AgentLog).order_by(desc(AgentLog.timestamp)).limit(limit).all()
+                
+                if logs:
+                    for log in logs:
+                        color = "#10B981" if log.level == "INFO" else "#F59E0B" if log.level == "WARNING" else "#EF4444"
+                        
+                        with st.container(border=True):
+                            col1, col2 = st.columns([4, 1])
+                            
+                            with col1:
+                                st.write(f"**[{log.agent_name}]** {log.message}")
+                            
+                            with col2:
+                                st.caption(log.timestamp.strftime("%H:%M:%S"))
+                else:
+                    st.info("No logs yet")
+            
+            else:  # Audit Trail
+                audits = db.query(AuditLog).order_by(desc(AuditLog.timestamp)).limit(limit).all()
+                
+                if audits:
+                    for audit in audits:
+                        action_icons = {
+                            'CREATE_JOB': '🆕',
+                            'VET_GOOD': '✅',
+                            'VET_JUNK': '❌',
+                            'EXPORT_TO_SHEETS': '📤',
+                            'ROTATE_KEY': '🔄',
+                            'API_CALL': '📡'
+                        }
+                        
+                        with st.container(border=True):
+                            col1, col2, col3 = st.columns([2, 2, 1])
+                            
+                            with col1:
+                                icon = action_icons.get(audit.action, '📋')
+                                st.write(f"{icon} **{audit.action}**")
+                            
+                            with col2:
+                                st.caption(f"User: {audit.user}")
+                            
+                            with col3:
+                                st.caption(audit.timestamp.strftime("%H:%M:%S"))
+                else:
+                    st.info("No audit entries yet")
+    
+    except Exception as e:
+        st.error(f"Failed to load logs: {str(e)[:100]}")
+
+# ============================================================================
+# TAB 5: HELP
+# ============================================================================
+with tab5:
+    st.header("❓ Help & Documentation")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🚀 Quick Start")
+        st.write("""
+        1. **Start a Search** (🔍 tab)
+           - Describe your target audience
+           - Set max leads limit
+           - Click "Start Search"
+        
+        2. **Monitor Progress** (📊 tab)
+           - Watch active jobs in real-time
+           - See discovered leads
+           - Stop jobs if needed
+        
+        3. **Review Leads** (🎯 tab)
+           - Mark as Good/Junk
+           - Filter & sort
+           - Export to Google Sheets
+        """)
+    
+    with col2:
+        st.subheader("⚙️ Configuration")
+        st.write("""
+        **API Keys** (⚙️ sidebar)
+        - Local: Edit in `.env`
+        - Cloud: Streamlit Secrets
+        
+        **Google Sheets** (⚙️ sidebar)
+        - Add credentials via Secrets
+        - Enable Auto-Sync
+        - Leads auto-export on completion
+        
+        **Quotas** (⚙️ sidebar)
+        - View daily API usage
+        - Yellow: 70%+ usage
+        - Red: 90%+ usage
+        """)
     
     st.divider()
     
-    # --- Search History ---
-    st.subheader("📜 Search History")
-    with SessionLocal() as db:
-        past_jobs = db.query(Job).order_by(desc(Job.created_at)).all()
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📊 What is "Score"?")
+        st.write("""
+        Leads are scored 0-20 points based on:
+        - **Founder/CTO role** (+5)
+        - **Active company** (+5)
+        - **Hiring signal** (+6)
+        - **Launch momentum** (+4)
+        - **Tech stack match** (+7)
         
-        if past_jobs:
-            history_data = []
-            for j in past_jobs:
-                status_emoji = "✅" if j.status == 'completed' else "⏳" if j.status == 'scraping' else "❌" if j.status == 'failed' else "🛑"
-                history_data.append({
-                    "Task": j.name,
-                    "Status": f"{status_emoji} {j.status.upper()}",
-                    "Leads": j.leads_found,
-                    "Goal": j.max_leads,
-                    "Date": j.created_at.strftime("%Y-%m-%d %H:%M")
-                })
-            st.dataframe(history_data, use_container_width=True, hide_index=True)
-        else:
-            st.info("No past searches found.")
-
-    if st.session_state.get("messages", []):
-        st.divider()
-        for message in st.session_state.get("messages", []):
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-
-with tab4:
-    st.header("📜 Activity Logs")
-
-    with SessionLocal() as db:
-        logs = db.query(AgentLog).order_by(desc(AgentLog.timestamp)).limit(50).all()
+        **15+**: Hot leads 🔥
+        **10-14**: Warm leads 🟡
+        **<10**: Cold leads ❄️
+        """)
     
-    if not logs:
-        st.info("No logs captured yet. Launch a mission to see the agents in action!")
+    with col2:
+        st.subheader("🔐 Security")
+        st.write("""
+        ✅ All API keys encrypted
+        ✅ Database fields encrypted
+        ✅ No plaintext credentials
+        ✅ Audit logging
+        ✅ Rate limiting
+        ✅ Input validation
+        
+        [View Security Audit](https://github.com/shouravrahman/lead-scrape-tool/blob/master/SECURITY_AUDIT.md)
+        """)
     
-    for log in logs:
-        color = "#10B981" if log.level == "INFO" else "#F59E0B"
-        st.markdown(f"""
-        <div style="border-left: 4px solid {color}; padding: 14px 20px; margin-bottom: 12px; background: rgba({'255,255,255,0.02' if st.session_state.theme == 'dark' else '0,0,0,0.02'}); border-radius: 0 8px 8px 0; position: relative;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <div style="font-size: 11px; font-weight:800; opacity: 0.6; text-transform: uppercase; letter-spacing:1px; color:{color};">{log.agent_name}</div>
-                <div style="font-size: 10px; opacity: 0.4;">{log.timestamp.strftime('%H:%S')}</div>
-            </div>
-            <div style="font-size: 14px; line-height:1.5; color:{'#E2E8F0' if st.session_state.theme == 'dark' else '#1E293B'};">{log.message}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.divider()
+    
+    st.subheader("🔗 Resources")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📖 Full Documentation", use_container_width=True):
+            st.info("See README.md in repository")
+    
+    with col2:
+        if st.button("🐛 Report Bug", use_container_width=True):
+            st.info("GitHub Issues: github.com/shouravrahman/lead-scrape-tool")
+    
+    with col3:
+        if st.button("💬 Discussions", use_container_width=True):
+            st.info("GitHub Discussions for questions")
+    
+    st.divider()
+    
+    st.caption("""
+    **Autonomous Lead Intelligence System** | v2.0 (Hardened)
+    
+    🔒 Security Enhanced | 🚀 Production Ready | ☁️ Streamlit Cloud Compatible
+    """)

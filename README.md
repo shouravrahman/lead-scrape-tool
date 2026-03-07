@@ -74,9 +74,9 @@ If you switch to paid versions, the system can handle enterprise-grade volumes w
 
 ## 📜 Documentation
 
-- [Deployment Guide](DEPLOYMENT.md)
-- [Case Study: Why & How](CASE_STUDY.md)
-- [Walkthrough](walkthrough.md)
+- **[🚀 Deployment Guide](STREAMLIT_CLOUD_GUIDE.md)** — Deploy to Streamlit Cloud in 5 minutes
+- **[🔐 Security](SECURITY.md)** — Security architecture, encryption, audit logging, and verification
+- **[📋 Full Deployment Details](DEPLOYMENT.md)** — Advanced configuration and troubleshooting
 
 ## 🛡️ License
 
