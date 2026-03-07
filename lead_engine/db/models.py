@@ -12,12 +12,7 @@ ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 if ENCRYPTION_KEY:
     EncryptedString = lambda: StringEncryptedType(String, ENCRYPTION_KEY)
 else:
-    # Fallback: use regular String if encryption key not available
-    # ⚠️ This is not secure! Only for development.
-    def EncryptedString():
-        import logging
-        logging.warning("⚠️  ENCRYPTION_KEY not set. Using plaintext database. Set ENCRYPTION_KEY immediately!")
-        return String
+    raise RuntimeError("CRITICAL: ENCRYPTION_KEY environment variable is not set. Cannot start securely.")
 
 class Lead(Base):
     __tablename__ = 'leads'

@@ -35,7 +35,10 @@ st.set_page_config(
 )
 
 # Detect cloud deployment
-IS_CLOUD = "streamlit.app" in st.get_page_config().get("client", {}).get("serverBaseUrl", "")
+try:
+    IS_CLOUD = "streamlit.app" in st.get_page_config().get("client", {}).get("serverBaseUrl", "")
+except AttributeError:
+    IS_CLOUD = os.getenv("IS_CLOUD", "false").lower() == "true"
 
 # Initialize session state
 if "supervisor" not in st.session_state:
@@ -300,12 +303,23 @@ with tab2:
             else:
                 query = query.order_by(desc(Lead.score))
             
-            leads = query.all()
+            # Pagination
+            total_leads = query.count()
+            page_size = 20
+            total_pages = max(1, (total_leads + page_size - 1) // page_size)
+            
+            col_p1, col_p2 = st.columns([3, 1])
+            with col_p1:
+                st.write(f"Showing {total_leads} lead(s)")
+            with col_p2:
+                page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
+            
+            offset = (page - 1) * page_size
+            leads = query.offset(offset).limit(page_size).all()
         
         if not leads:
             st.info("No leads match your filters. Try adjusting them.")
         else:
-            st.write(f"Showing {len(leads)} lead(s)")
             
             # Display leads
             for idx, lead in enumerate(leads):
@@ -632,7 +646,7 @@ with tab5:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📊 What is "Score"?")
+        st.subheader("📊 What is 'Score'?")
         st.write("""
         Leads are scored 0-20 points based on:
         - **Founder/CTO role** (+5)

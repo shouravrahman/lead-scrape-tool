@@ -138,7 +138,7 @@ class GoogleSheetsTool:
             # Check if lead already exists in sheet (basic email check)
             # Fetch all emails from column 3 (C)
             emails = self.sheet.col_values(3)
-            if lead.email in emails:
+            if lead.email and lead.email in emails:
                 logger.info(f"Lead {lead.email} already in sheet")
                 return
 

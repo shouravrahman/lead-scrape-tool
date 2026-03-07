@@ -16,7 +16,6 @@ beautifulsoup4
 firecrawl-py
 google-search-results
 rich
-asyncio
 duckduckgo-search
 cryptography
 sqlalchemy-utils

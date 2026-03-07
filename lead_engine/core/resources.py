@@ -9,7 +9,8 @@ import gc
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
-from lead_engine.db.models import SessionLocal
+from sqlalchemy.orm import Session
+from lead_engine.db.models import SessionLocal, Lead, AgentLog, AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ class ResourceMonitor:
 
 
 @asynccontextmanager
-async def managed_db_session() -> AsyncIterator:
+async def managed_db_session() -> AsyncIterator[Session]:
     """
     Context manager for database sessions.
     Ensures proper cleanup even if exception occurs.
@@ -160,9 +161,6 @@ async def cleanup_old_logs(days: int = 30):
     Delete old log entries from database.
     Call periodically to prevent log bloat.
     """
-    from lead_engine.db.models import AgentLog
-    from datetime import timedelta
-    
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
     with SessionLocal() as db:
@@ -182,9 +180,6 @@ async def cleanup_old_audit_logs(days: int = 90):
     """
     Delete very old audit logs (keep longer than regular logs for compliance).
     """
-    from lead_engine.db.models import AuditLog
-    from datetime import timedelta
-    
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
     with SessionLocal() as db:
