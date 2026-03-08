@@ -89,7 +89,7 @@ class JobConfig(BaseModel):
 class LeadVetting(BaseModel):
     """Vetting status update for leads"""
     lead_id: int = Field(..., ge=1)
-    status: str = Field(..., regex='^(good|junk|pending)$')
+    status: str = Field(..., pattern='^(good|junk|pending)$')
     feedback: str = Field(default="", max_length=1000)
     
     @field_validator('feedback')

@@ -72,6 +72,17 @@ If you switch to paid versions, the system can handle enterprise-grade volumes w
 
 **Recommended for Agencies**: 1 Paid SerpAPI key + 1 Paid Firecrawl key = **3,000+ enriched leads/mo**.
 
+## 📊 Google Sheets Setup
+
+The system supports real-time sync to Google Sheets.
+
+1. **Get Credentials**: Create a Service Account in Google Cloud Console and download `credentials.json`.
+2. **Share Sheet**: Share your Google Sheet with the service account email (Editor access).
+3. **Connect**: Set `GOOGLE_SHEET_ID` and provide credentials via `GOOGLE_CREDENTIALS_JSON`.
+4. **Campaigns**: You can specify different Google Sheets for different campaigns directly in the UI when starting a search.
+
+👉 **Read the Full Setup Guide**
+
 ## 📜 Documentation
 
 - **[🚀 Deployment Guide](STREAMLIT_CLOUD_GUIDE.md)** — Deploy to Streamlit Cloud in 5 minutes

@@ -10,7 +10,6 @@ from lead_engine.agents.enrichment import EnrichmentAgent
 from lead_engine.agents.scorer import ICPScoringAgent
 from lead_engine.tools.google_sheets import GoogleSheetsTool
 import logging, os
-import os # Added for os.getenv
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +28,15 @@ class SupervisorAgent:
         self.scorer = ICPScoringAgent()
         self.sheets = GoogleSheetsTool()
 
-    async def create_job(self, user_intent: str, max_leads: int = 100, sheet_id: str = None, user: str = "system") -> int:
+    async def create_job(self, user_intent: str, campaign_name: Optional[str] = None, max_leads: int = 100, sheet_id: str = None, user: str = "system") -> int:
         """
         Creates a new scraping job based on user intent.
         """
         db = SessionLocal() # Keep this session short
         try:
+            job_name = campaign_name or user_intent[:50]
             job = Job(
-                name=user_intent[:50],
+                name=job_name,
                 status='processing_intent',
                 max_leads=max_leads,
                 sheet_id=sheet_id

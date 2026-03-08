@@ -29,7 +29,6 @@ class GoogleSheetsTool:
     
     def __init__(self):
         self.sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        self.creds_file = os.getenv("GOOGLE_CREDENTIALS_FILE")
         self.client = None
         self.sheet = None
     
@@ -50,29 +49,6 @@ class GoogleSheetsTool:
             logger.warning(f"Invalid Google Sheets ID format: {sheet_id[:10]}...")
         
         return is_valid
-    
-    @staticmethod
-    def validate_credentials_file(creds_file: str) -> bool:
-        """
-        Validate credentials file exists and is readable.
-        """
-        if not creds_file:
-            return False
-        
-        if not os.path.exists(creds_file):
-            logger.error(f"Credentials file not found: {creds_file}")
-            return False
-        
-        # Check file permissions (should be readable only by owner)
-        import stat
-        file_stat = os.stat(creds_file)
-        perms = stat.S_IMODE(file_stat.st_mode)
-        
-        # Warn if world-readable
-        if perms & stat.S_IROTH:
-            logger.warning(f"⚠️  Credentials file is world-readable: {creds_file}")
-        
-        return True
 
     def _authenticate(self, override_sheet_id: str = None):
         """
@@ -87,21 +63,26 @@ class GoogleSheetsTool:
         if not self.validate_sheet_id(target_id):
             raise GoogleSheetsSecurityError("Invalid Google Sheets ID format")
         
-        # Validate credentials file
-        if not self.validate_credentials_file(self.creds_file):
-            raise GoogleSheetsSecurityError("Credentials file validation failed")
-
         try:
             scope = [
                 "https://spreadsheets.google.com/feeds",
                 "https://www.googleapis.com/auth/drive"
             ]
-            creds = ServiceAccountCredentials.from_json_keyfile_name(self.creds_file, scope)
+            
+            # Load from environment variable
+            creds_json_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+            if not creds_json_str:
+                raise GoogleSheetsSecurityError("No valid Google credentials found. Set GOOGLE_CREDENTIALS_JSON environment variable.")
+
+            logger.info("Authenticating with Google Sheets via JSON environment variable.")
+            creds_dict = json.loads(creds_json_str)
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
             self.client = gspread.authorize(creds)
             self.sheet = self.client.open_by_key(target_id).sheet1
             self.current_sheet_id = target_id
             
-            logger.info(f"✅ Authenticated with Google Sheets: {target_id[:10]}...")
+            logger.info(f"✅ Successfully authenticated with Google Sheets: {target_id[:10]}...")
             return True
         except Exception as e:
             logger.error(f"Google Sheets authentication failed: {e}")

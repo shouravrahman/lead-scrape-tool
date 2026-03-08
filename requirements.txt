@@ -21,3 +21,5 @@ cryptography
 sqlalchemy-utils
 streamlit-authenticator
 psutil
+ruff
+mypy

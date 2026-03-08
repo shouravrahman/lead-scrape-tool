@@ -377,8 +377,14 @@ with tab2:
                     with col3:
                         if st.button("📤 Export", key=f"export_{lead.id}"):
                             try:
+                                # Find the sheet ID associated with the job that created this lead
+                                with SessionLocal() as db:
+                                    job = db.query(Job).filter(Job.id == lead.job_id).first()
+                                    target_sheet_id = job.sheet_id if job else None
+                                
                                 sheets = GoogleSheetsTool()
-                                sheets.sync_lead(lead, user=st.session_state.user_id)
+                                # Pass the specific sheet_id for this lead's campaign
+                                sheets.sync_lead(lead, override_sheet_id=target_sheet_id, user=st.session_state.user_id)
                                 st.success("✅ Exported to Sheets!")
                             except GoogleSheetsSecurityError as e:
                                 st.warning(f"⚠️ {str(e)[:100]}")
@@ -411,44 +417,53 @@ with tab3:
     st.header("🔍 Start New Search")
     
     try:
-        # Input form
-        col1, col2, col3 = st.columns([2, 1, 1])
-        
-        with col1:
-            user_intent = st.text_input(
-                "I'm looking for...",
-                placeholder="e.g. SaaS founders in Austin building AI tools",
-                help="Describe your target audience"
+        with st.form("search_form"):
+            st.subheader("1. Campaign Details")
+            col1, col2 = st.columns(2)
+            with col1:
+                campaign_name = st.text_input(
+                    "Campaign Name",
+                    placeholder="e.g. Q2 SaaS Outreach",
+                    help="Give this search a memorable name."
+                )
+            with col2:
+                max_leads = st.number_input(
+                    "Max Leads",
+                    min_value=1,
+                    max_value=500,
+                    value=50,
+                    help="Target number of leads to find for this campaign."
+                )
+
+            st.subheader("2. AI Prompt")
+            user_intent = st.text_area(
+                "Describe your Ideal Lead Profile",
+                placeholder="e.g. 'SaaS founders in Austin who recently raised a Series A and are hiring engineers'",
+                help="This is the natural language prompt for the AI to find leads.",
+                height=100
             )
-        
-        with col2:
+
+            st.subheader("3. Export (Optional)")
             max_leads = st.number_input(
                 "Max Leads",
                 min_value=1,
                 max_value=500,
                 value=50,
-                help="Target number of leads to find"
+                help="Target number of leads to find for this campaign."
             )
-        
-        with col3:
             sheet_id = st.text_input(
-                "Sheet ID (Optional)",
-                placeholder="Leave blank",
-                help="Auto-export to this sheet"
+                "Campaign Sheet ID",
+                placeholder="Paste Google Sheet ID here",
+                help="Optional. Paste a specific Google Sheet ID to send these leads to. If blank, uses the default sheet from settings."
             )
-        
-        # Submit
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            submit = st.button("🚀 Start Search", use_container_width=True, type="primary")
-        
-        with col2:
-            st.info("💡 Searches run asynchronously. Check the Dashboard for progress.")
-        
+            
+            submit = st.form_submit_button("🚀 Start Search", use_container_width=True, type="primary")
+
         if submit:
-            if not user_intent or len(user_intent) < 3:
-                st.error("❌ Please describe what you're looking for (min 3 chars)")
+            if not campaign_name or len(campaign_name) < 3:
+                st.error("❌ Please provide a campaign name (min 3 chars).")
+            elif not user_intent or len(user_intent) < 10:
+                st.error("❌ Please provide a more detailed AI prompt (min 10 chars).")
             else:
                 try:
                     # Validate input
@@ -461,8 +476,9 @@ with tab3:
                     # Create job
                     job_id = asyncio.run(
                         st.session_state.supervisor.create_job(
-                            query.intent,
-                            query.max_leads,
+                            user_intent=query.intent,
+                            campaign_name=campaign_name,
+                            max_leads=query.max_leads,
                             sheet_id=query.sheet_id,
                             user=st.session_state.user_id
                         )
@@ -472,7 +488,7 @@ with tab3:
                         'CREATE_JOB',
                         resource_type='job',
                         resource_id=str(job_id),
-                        details={'intent': user_intent[:50], 'max_leads': max_leads},
+                        details={'campaign': campaign_name, 'intent': user_intent[:50], 'max_leads': max_leads},
                         user=st.session_state.user_id
                     )
                     
@@ -506,7 +522,7 @@ with tab3:
                         
                         history_data.append({
                             "ID": j.id,
-                            "Intent": j.name[:40],
+                            "Campaign": j.name[:40],
                             "Status": f"{status_icons.get(j.status, '❓')} {j.status}",
                             "Leads": f"{j.leads_found}/{j.max_leads}",
                             "Date": j.created_at.strftime("%m/%d %H:%M") if j.created_at else "?"

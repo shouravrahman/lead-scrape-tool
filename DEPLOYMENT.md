@@ -93,8 +93,9 @@ SERP_API_KEYS         = "key1,key2"
 SERPER_API_KEYS       = "key1"
 TAVILY_API_KEYS       = "key1"
 FIRECRAWL_API_KEYS    = "key1"
+# For Google Sheets, paste the entire content of your credentials.json file as a single-line string.
+GOOGLE_CREDENTIALS_JSON = '{"type": "service_account", ...}'
 GOOGLE_SHEET_ID       = "your_sheet_id"
-GOOGLE_CREDENTIALS_FILE = "credentials.json"
 AUTO_SYNC_TO_SHEETS   = "true"
 ```
 > See `.streamlit/secrets.toml.example` for a full reference.
@@ -115,12 +116,19 @@ The system can automatically sync high-scoring leads to a Google Sheet.
 3. Enable the **Google Sheets API** under **APIs & Services → Library**.
 4. Go to **APIs & Services → Credentials → Create Credentials → Service Account**.
 5. Download the JSON key file and rename it `credentials.json`.
-6. Place it in the root of the project.
+6. Open the file, copy its content, and paste it into your `.env` file as `GOOGLE_CREDENTIALS_JSON` (wrap it in single quotes).
 
 ### 2. Configure the Sheet
 1. Create a new Google Sheet.
 2. Copy the **Sheet ID** from the URL.
 3. Share the Sheet with the **Service Account Email** and give it **Editor** access.
+
+### 3. Managing Multiple Sheets (Campaign Mode)
+
+The system allows you to organize leads into different sheets for different campaigns without restarting the app.
+
+- **Global Default**: The `GOOGLE_SHEET_ID` in your settings is used for general searches.
+- **Campaign Specific**: When starting a new search in the UI, paste a specific **Sheet ID** into the "Campaign Sheet ID" field. Leads from that search will be routed exclusively to that sheet.
 
 ---
 

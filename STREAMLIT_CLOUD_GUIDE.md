@@ -70,14 +70,15 @@ SERPER_API_KEYS = "encrypted:gAAAAAB..."
 TAVILY_API_KEYS = "encrypted:gAAAAAB..."
 FIRECRAWL_API_KEYS = "encrypted:gAAAAAB..."
 OPENROUTER_API_KEYS = "encrypted:gAAAAAB..."
-OPENAI_API_KEYS = "encrypted:gAAAAAB..."
+
 
 # LLM MODELS
 PLANNER_MODEL = "google/gemini-flash-1.5-free"
 EXTRACTOR_MODEL = "google/gemini-flash-1.5-free"
 
-# GOOGLE SHEETS (Optional)
+# GOOGLE SHEETS (Optional) - Paste the content of your credentials.json file as a single-line string.
 GOOGLE_SHEET_ID = "your_44_char_id"
+GOOGLE_CREDENTIALS_JSON = '{"type": "service_account", ...}'
 AUTO_SYNC_TO_SHEETS = "true"
 
 # LOGGING
@@ -123,7 +124,9 @@ For automatic lead export:
 1. Create Google Service Account
 2. Get JSON key
 3. Share Sheet with service account email
-4. In Secrets, add `GOOGLE_SHEET_ID`
+4. In Secrets, add:
+   - `GOOGLE_SHEET_ID`
+   - `GOOGLE_CREDENTIALS_JSON` (with the content of your key file)
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md#google-sheets-integration-setup) for details.
 

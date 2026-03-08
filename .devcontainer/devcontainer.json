@@ -10,14 +10,20 @@
       ]
     },
     "vscode": {
-      "settings": {},
+      "settings": {
+        // Point VS Code to the Python interpreter inside our new virtual environment
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/venv/bin/python"
+      },
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance"
       ]
     }
   },
-  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
+  // This command runs once after the container is created.
+  // 1. Creates a virtual environment named 'venv'.
+  // 2. Installs all Python packages from requirements.txt into that venv.
+  "postCreateCommand": "python3 -m venv venv && ./venv/bin/pip install -r requirements.txt",
   "postAttachCommand": {
     "server": "streamlit run streamlit_app.py --server.enableCORS false --server.enableXsrfProtection false"
   },

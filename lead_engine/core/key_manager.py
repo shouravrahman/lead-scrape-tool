@@ -22,16 +22,14 @@ class KeyManager:
                 "serper": [],
                 "tavily": [],
                 "firecrawl": [],
-                "openrouter": [],
-                "openai": []
+                "openrouter": []
             }
             cls._instance.active_index = {
                 "serpapi": 0,
                 "serper": 0,
                 "tavily": 0,
                 "firecrawl": 0,
-                "openrouter": 0,
-                "openai": 0
+                "openrouter": 0
             }
             cls._instance._load_keys_from_env()
         return cls._instance
@@ -39,52 +37,23 @@ class KeyManager:
     def _load_keys_from_env(self):
         """
         Loads and decrypts keys from .env variables.
-        Supports COMMA SEPARATED encrypted or plain-text lists.
+        Keys should be in a comma-separated list under the plural `_KEYS` variable.
         
-        For encrypted keys, format: SERP_API_KEYS=encrypted:gAAAAAB...,encrypted:gAAAAAB...
-        For plain keys (legacy): SERP_API_KEYS=key1,key2
+        Example: `SERP_API_KEYS=key1,key2,encrypted:gAAAAAB...`
         """
         mapping = {
             "serpapi": "SERP_API_KEYS",
             "serper": "SERPER_API_KEYS",
             "tavily": "TAVILY_API_KEYS",
             "firecrawl": "FIRECRAWL_API_KEYS",
-            "openrouter": "OPENROUTER_API_KEYS",
-            "openai": "OPENAI_API_KEYS"
-        }
-        
-        # Fallback single key mapping
-        fallbacks = {
-            "serpapi": "SERP_API_KEY",
-            "serper": "SERPER_API_KEY",
-            "tavily": "TAVILY_API_KEY",
-            "firecrawl": "FIRECRAWL_API_KEY",
-            "openrouter": "OPENROUTER_API_KEY",
-            "openai": "OPENAI_API_KEY"
+            "openrouter": "OPENROUTER_API_KEYS"
         }
 
         for service, env_var in mapping.items():
-            # Try encrypted/mixed list first
             decrypted_keys = encrypt_env_keys(env_var)
             if decrypted_keys:
                 self.keys[service].extend(decrypted_keys)
                 logger.info(f"KeyManager: Loaded {len(self.keys[service])} keys for {service}")
-            
-            # Try fallback single key
-            fallback_val = os.getenv(fallbacks[service])
-            if fallback_val and fallback_val not in self.keys[service]:
-                # Check if it's encrypted
-                if fallback_val.startswith("encrypted:"):
-                    from lead_engine.security.encryption import SecretManager
-                    try:
-                        decrypted = SecretManager.decrypt(fallback_val[10:])
-                        self.keys[service].append(decrypted)
-                    except Exception as e:
-                        logger.error(f"Failed to decrypt fallback key for {service}: {e}")
-                else:
-                    logger.warning(f"⚠️  Plain-text key detected for {service}. Encrypt it!")
-                    self.keys[service].append(fallback_val.strip())
-                logger.info(f"KeyManager: Added fallback key for {service}")
 
     def get_key(self, service: str) -> Optional[str]:
         """
