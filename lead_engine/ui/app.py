@@ -444,13 +444,6 @@ with tab3:
             )
 
             st.subheader("3. Export (Optional)")
-            max_leads = st.number_input(
-                "Max Leads",
-                min_value=1,
-                max_value=500,
-                value=50,
-                help="Target number of leads to find for this campaign."
-            )
             sheet_id = st.text_input(
                 "Campaign Sheet ID",
                 placeholder="Paste Google Sheet ID here",
