@@ -82,23 +82,14 @@ Ensure your repository is pushed to GitHub (public or private).
    - **Branch**: `main` (or your default branch)
 4. Click **Advanced settings** → open the **Secrets** editor.
 
-### 3. Add Secrets
-Paste the following into the Secrets editor (fill in your real values):
-```toml
-DATABASE_URL          = "postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require"
-OPENROUTER_API_KEY    = "sk-or-..."
-PLANNER_MODEL         = "google/gemini-flash-1.5-free"
-EXTRACTOR_MODEL       = "google/gemini-flash-1.5-free"
-SERP_API_KEYS         = "key1,key2"
-SERPER_API_KEYS       = "key1"
-TAVILY_API_KEYS       = "key1"
-FIRECRAWL_API_KEYS    = "key1"
-# For Google Sheets, paste the entire content of your credentials.json file as a single-line string.
-GOOGLE_CREDENTIALS_JSON = '{"type": "service_account", ...}'
-GOOGLE_SHEET_ID       = "your_sheet_id"
-AUTO_SYNC_TO_SHEETS   = "true"
+### 3. Generate & Add Secrets
+Run the helper script to automatically encrypt your keys and generate the TOML format:
+
+```bash
+python generate_secrets.py
 ```
-> See `.streamlit/secrets.toml.example` for a full reference.
+
+Copy the output and paste it directly into the Streamlit Cloud Secrets editor.
 
 4. Click **Deploy** — the app will be live in ~60 seconds.
 
