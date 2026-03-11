@@ -4,6 +4,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy_utils import StringEncryptedType
 import os
+from dotenv import load_dotenv
+
+# Load environment variables early
+load_dotenv()
 
 Base = declarative_base()
 
@@ -13,6 +17,21 @@ if ENCRYPTION_KEY:
     EncryptedString = lambda: StringEncryptedType(String, ENCRYPTION_KEY)
 else:
     raise RuntimeError("CRITICAL: ENCRYPTION_KEY environment variable is not set. Cannot start securely.")
+
+class Campaign(Base):
+    __tablename__ = 'campaigns'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    # ⚙️ Custom config for this campaign (e.g., custom prompts, agent tweaks)
+    config = Column(JSON, default={}) 
+    status = Column(String, default='active')  # active, archived
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    jobs = relationship("Job", back_populates="campaign")
+    leads = relationship("Lead", back_populates="campaign")
 
 class Lead(Base):
     __tablename__ = 'leads'
@@ -35,11 +54,16 @@ class Lead(Base):
     source_url = Column(String)
     raw_data = Column(JSON)
     job_id = Column(Integer, ForeignKey('jobs.id'))
+    campaign_id = Column(Integer, ForeignKey('campaigns.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    job = relationship("Job", back_populates="leads")
+    campaign = relationship("Campaign", back_populates="leads")
+    
     __table_args__ = (
         Index('idx_lead_job_id', 'job_id'),
+        Index('idx_lead_campaign_id', 'campaign_id'),
         Index('idx_lead_score', 'score'),
         Index('idx_lead_status', 'status'),
     )
@@ -55,8 +79,12 @@ class Job(Base):
     leads_found = Column(Integer, default=0)
     max_leads = Column(Integer, default=100)  # Max leads to find
     sheet_id = Column(String)  # Target Google Sheet for this search
+    campaign_id = Column(Integer, ForeignKey('campaigns.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    campaign = relationship("Campaign", back_populates="jobs")
+    leads = relationship("Lead", back_populates="job")
 
 class Source(Base):
     __tablename__ = 'sources'

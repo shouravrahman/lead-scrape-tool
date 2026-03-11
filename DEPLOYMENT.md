@@ -114,12 +114,12 @@ The system can automatically sync high-scoring leads to a Google Sheet.
 2. Copy the **Sheet ID** from the URL.
 3. Share the Sheet with the **Service Account Email** and give it **Editor** access.
 
-### 3. Managing Multiple Sheets (Campaign Mode)
+### 3. Managing Multiple Sheets (Segment Mode)
 
-The system allows you to organize leads into different sheets for different campaigns without restarting the app.
+The system allows you to organize leads into different sheets for different segments without restarting the app.
 
 - **Global Default**: The `GOOGLE_SHEET_ID` in your settings is used for general searches.
-- **Campaign Specific**: When starting a new search in the UI, paste a specific **Sheet ID** into the "Campaign Sheet ID" field. Leads from that search will be routed exclusively to that sheet.
+- **Segment Specific**: When starting a new **Search Job** in the UI, paste a specific **Sheet ID** into the "Override Google Sheet ID" field. Leads from that job will be routed exclusively to that sheet.
 
 ---
 

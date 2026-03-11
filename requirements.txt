@@ -23,3 +23,6 @@ streamlit-authenticator
 psutil
 ruff
 mypy
+crewai[tools]
+plotly
+litellm

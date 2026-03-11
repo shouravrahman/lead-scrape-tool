@@ -74,6 +74,11 @@ class GoogleSheetsTool:
             if not creds_json_str:
                 raise GoogleSheetsSecurityError("No valid Google credentials found. Set GOOGLE_CREDENTIALS_JSON environment variable.")
 
+            # Support encrypted credentials
+            if creds_json_str.startswith("encrypted:"):
+                logger.info("Decrypting Google credentials...")
+                creds_json_str = SecretManager.decrypt(creds_json_str[10:])
+
             logger.info("Authenticating with Google Sheets via JSON environment variable.")
             creds_dict = json.loads(creds_json_str)
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)

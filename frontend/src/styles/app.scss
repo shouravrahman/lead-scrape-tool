@@ -1,0 +1,500 @@
+// ============================================================================
+// APP LAYOUT - RESPONSIVE & BALANCED
+// ============================================================================
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #0B0C10 0%, #1A1A1A 100%);
+  color: #e0e0e0;
+}
+
+// HEADER
+.app-header {
+  background: rgba(11, 12, 16, 0.95);
+  border-bottom: 1px solid rgba(192, 192, 192, 0.1);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  .header-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 3rem;
+
+    @media (max-width: 768px) {
+      padding: 0.75rem 1rem;
+      gap: 1rem;
+    }
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: fit-content;
+
+    .logo-icon {
+      font-size: 1.75rem;
+    }
+
+    .logo-text {
+      h1 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0;
+        color: #C0C0C0; /* Platinum */
+        letter-spacing: 0.05em;
+      }
+
+      p {
+        font-size: 0.7rem;
+        color: #888;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .logo-icon {
+        font-size: 1.25rem;
+      }
+      .logo-text h1 {
+        font-size: 0.9rem;
+      }
+    }
+  }
+
+  .nav-menu {
+    display: flex;
+    gap: 0.5rem;
+    flex: 1;
+    justify-content: center;
+    flex-wrap: wrap;
+
+    .nav-link {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      background: rgba(192, 192, 192, 0.05);
+      border: 1px solid rgba(192, 192, 192, 0.2);
+      color: #C0C0C0;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(192, 192, 192, 0.1);
+        border-color: rgba(192, 192, 192, 0.4);
+      }
+
+      &.active {
+        background: rgba(0, 255, 163, 0.2);
+        border-color: #00FFA3;
+        color: #fff;
+      }
+
+      .icon {
+        font-size: 1rem;
+      }
+
+      @media (max-width: 768px) {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        .icon {
+          font-size: 0.9rem;
+        }
+      }
+    }
+  }
+}
+
+// TOP BAR - Campaign & Quota
+.top-bar {
+  background: rgba(20, 21, 28, 0.9);
+  border-bottom: 1px solid rgba(0, 255, 163, 0.1);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+  }
+
+  .campaign-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 0 1 auto;
+
+    label {
+      font-weight: 600;
+      color: #00FFA3;
+      white-space: nowrap;
+      font-size: 0.95rem;
+    }
+
+    .campaign-select {
+      padding: 0.5rem 1rem;
+      background: rgba(0, 255, 163, 0.05);
+      border: 1px solid rgba(0, 255, 163, 0.3);
+      color: #e0e0e0;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      min-width: 180px;
+
+      &:hover,
+      &:focus {
+        background: rgba(0, 255, 163, 0.1);
+        border-color: #00FFA3;
+        outline: none;
+      }
+
+      option {
+        background: #111218;
+        color: #e0e0e0;
+      }
+    }
+
+    .link-btn {
+      padding: 0.5rem 1rem;
+      background: rgba(0, 255, 163, 0.15);
+      border: 1px solid #00FFA3;
+      color: #00FFA3;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: #00FFA3;
+        color: #111218;
+      }
+    }
+
+    @media (max-width: 768px) {
+      width: 100%;
+      label {
+        font-size: 0.85rem;
+      }
+      .campaign-select {
+        min-width: 130px;
+        font-size: 0.85rem;
+      }
+      .link-btn {
+        font-size: 0.8rem;
+      }
+    }
+  }
+
+  .quota-bar {
+    display: flex;
+    gap: 1.5rem;
+    flex: 1;
+    min-width: 300px;
+    justify-content: flex-end;
+
+    @media (max-width: 1024px) {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .quota-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 150px;
+
+      .provider-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #888;
+        text-transform: uppercase;
+        min-width: 45px;
+      }
+
+      .quota-text {
+        font-size: 0.8rem;
+        color: #00FFA3;
+        font-weight: 600;
+        min-width: 45px;
+        text-align: right;
+      }
+
+      .progress-bar {
+        height: 4px;
+        background: rgba(0, 255, 163, 0.1);
+        border-radius: 2px;
+        flex: 1;
+        min-width: 60px;
+        overflow: hidden;
+
+        .progress-fill {
+          height: 100%;
+          background: #00FFA3;
+          border-radius: 2px;
+          transition: all 0.3s ease;
+
+          &.warning {
+            background: #FFB347;
+          }
+
+          &.critical {
+            background: #FF6B6B;
+          }
+        }
+      }
+
+      @media (max-width: 768px) {
+        min-width: 120px;
+        .provider-name {
+          font-size: 0.7rem;
+        }
+        .quota-text {
+          font-size: 0.75rem;
+        }
+      }
+    }
+  }
+}
+
+// MAIN CONTENT
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  width: 100%;
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+
+    @media (max-width: 768px) {
+      padding: 1rem;
+    }
+  }
+}
+
+// FOOTER
+.app-footer {
+  background: rgba(20, 21, 28, 0.9);
+  border-top: 1px solid rgba(0, 255, 163, 0.1);
+  padding: 0.75rem 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    padding: 0.5rem 1rem;
+    gap: 1.5rem;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #888;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.25rem;
+      color: #00FFA3;
+      font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+      .stat-label {
+        font-size: 0.7rem;
+      }
+      .stat-value {
+        font-size: 1rem;
+      }
+    }
+  }
+}
+
+// CHAT BUBBLE
+.chat-bubble {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #00FFA3, #00DD88);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 255, 163, 0.3);
+  transition: all 0.2s ease;
+  z-index: 200;
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 30px rgba(0, 255, 163, 0.5);
+  }
+
+  .bubble-icon {
+    display: block;
+  }
+
+  .chat-window {
+    position: fixed;
+    bottom: 80px;
+    right: 2rem;
+    width: 350px;
+    height: 500px;
+    background: rgba(20, 21, 28, 0.95);
+    border: 1px solid rgba(0, 255, 163, 0.3);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+    @media (max-width: 768px) {
+      width: 300px;
+      height: 400px;
+      right: 1rem;
+      bottom: 70px;
+    }
+
+    .chat-header {
+      padding: 1rem;
+      background: rgba(0, 255, 163, 0.1);
+      border-bottom: 1px solid rgba(0, 255, 163, 0.2);
+      font-weight: 600;
+      color: #00FFA3;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+
+      .message {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        max-width: 90%;
+
+        &.user {
+          background: rgba(0, 255, 163, 0.2);
+          color: #fff;
+          align-self: flex-end;
+          border-bottom-right-radius: 4px;
+        }
+
+        &.assistant {
+          background: rgba(0, 255, 163, 0.1);
+          color: #ccc;
+          align-self: flex-start;
+          border-bottom-left-radius: 4px;
+        }
+      }
+    }
+
+    .chat-input-area {
+      padding: 0.75rem;
+      border-top: 1px solid rgba(0, 255, 163, 0.2);
+      display: flex;
+      gap: 0.5rem;
+
+      .chat-input {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        background: rgba(0, 255, 163, 0.05);
+        border: 1px solid rgba(0, 255, 163, 0.2);
+        color: #e0e0e0;
+        border-radius: 6px;
+        font-size: 0.9rem;
+
+        &:focus {
+          outline: none;
+          background: rgba(0, 255, 163, 0.1);
+          border-color: #00FFA3;
+        }
+
+        &::placeholder {
+          color: #666;
+        }
+      }
+
+      .chat-send {
+        padding: 0.5rem 0.75rem;
+        background: #00FFA3;
+        border: none;
+        color: #111218;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: #00DD88;
+        }
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    width: 50px;
+    height: 50px;
+    bottom: 1rem;
+    right: 1rem;
+  }
+}
+
+// Responsive scrollbar
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 163, 0.3);
+  border-radius: 4px;
+
+  &:hover {
+    background: rgba(0, 255, 163, 0.5);
+  }
+}
+

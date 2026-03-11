@@ -3,11 +3,6 @@ import uuid
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from lead_engine.db.models import SessionLocal, Job, AgentLog, Lead
-from lead_engine.core.planner import PlannerAgent
-from lead_engine.agents.scraper_pool import ScraperAgentPool
-from lead_engine.agents.extractor import ExtractionAgent
-from lead_engine.agents.enrichment import EnrichmentAgent
-from lead_engine.agents.scorer import ICPScoringAgent
 from lead_engine.tools.google_sheets import GoogleSheetsTool
 import logging, os
 
@@ -21,25 +16,24 @@ class SupervisorAgent:
     _active_jobs: Dict[int, asyncio.Event] = {}
     
     def __init__(self):
-        self.planner = PlannerAgent()
-        self.scraper_pool = ScraperAgentPool()
-        self.extractor = ExtractionAgent()
-        self.enrichment = EnrichmentAgent()
-        self.scorer = ICPScoringAgent()
         self.sheets = GoogleSheetsTool()
 
-    async def create_job(self, user_intent: str, campaign_name: Optional[str] = None, max_leads: int = 100, sheet_id: str = None, user: str = "system") -> int:
+    async def create_job(self, user_intent: str, campaign_id: Optional[int] = None, max_leads: int = 100, sheet_id: str = None, user: str = "system") -> int:
         """
         Creates a new scraping job based on user intent.
         """
         db = SessionLocal() # Keep this session short
         try:
-            job_name = campaign_name or user_intent[:50]
+            from lead_engine.db.models import Campaign
+            campaign = db.query(Campaign).get(campaign_id) if campaign_id else None
+            
+            job_name = f"{campaign.name if campaign else ''} - {user_intent[:30]}"
             job = Job(
                 name=job_name,
                 status='processing_intent',
                 max_leads=max_leads,
-                sheet_id=sheet_id
+                sheet_id=sheet_id,
+                campaign_id=campaign_id
             )
             db.add(job)
             db.commit()
@@ -48,7 +42,7 @@ class SupervisorAgent:
             # Start the supervisor loop for this job
             cancel_event = asyncio.Event()
             self._active_jobs[job.id] = cancel_event
-            asyncio.create_task(self.run_job_loop(job.id, user_intent, cancel_event, max_leads, user))
+            asyncio.create_task(self.run_job_loop(job.id, user_intent, cancel_event, max_leads, user, campaign_id))
             
             return job.id
         finally:
@@ -62,108 +56,88 @@ class SupervisorAgent:
             self._active_jobs[job_id].set()
             logger.info(f"Supervisor: Signaled job {job_id} to stop.")
     
-    async def run_job_loop(self, job_id: int, user_intent: str, cancel_event: asyncio.Event, max_leads: int, user: str):
+    async def run_job_loop(self, job_id: int, user_intent: str, cancel_event: asyncio.Event, max_leads: int, user: str, campaign_id: Optional[int] = None):
         """
-        The main loop for a job: observe -> plan -> dispatch -> evaluate -> repeat.
+        The main loop for a job. Replaced procedural logic with CrewAI orchestration.
         """
         db = SessionLocal()
         try:
-            self.log_event(job_id, "Supervisor", f"Starting job loop for intent: {user_intent}", db=db)
+            from lead_engine.core.crew import LeadGenerationCrew
+            self.log_event(job_id, "Supervisor", f"Starting CrewAI job loop for intent: {user_intent}", db=db)
             
-            # 1. Planning Phase
-            queries = await self.planner.generate_queries(user_intent)
-            self.log_event(job_id, "Planner", f"Generated {len(queries)} intelligent dorks.", db=db)
-        
-            # Update job with queries
-            # Use existing session
             job = db.query(Job).get(job_id)
-            job.queries = queries
             job.status = 'scraping'
             db.commit()
             
-            # 2. Scraping Phase
+            # 1. Orchestration Phase via CrewAI
             if cancel_event.is_set(): return
             
-            self.log_event(job_id, "Supervisor", "Starting scraping phase...", db=db)
-            raw_leads = await self.scraper_pool.run_all(queries)
-            self.log_event(job_id, "ScraperPool", f"Found {len(raw_leads)} potential lead signals.", db=db)
+            # Load campaign config if any
+            from lead_engine.db.models import Campaign
+            campaign_config = {}
+            if campaign_id:
+                campaign = db.query(Campaign).get(campaign_id)
+                if campaign and campaign.config:
+                    campaign_config = campaign.config
+                    self.log_event(job_id, "Supervisor", f"Using custom config for campaign: {campaign.name}", db=db)
             
-            # 3. Extraction, Enrichment & Persistence Phase
+            # Initialize Crew with overrides
+            crew_instance = LeadGenerationCrew(config_overrides=campaign_config).crew()
+            
+            # Kickoff is synchronous. Run in thread to not block the main async loop
+            result = await asyncio.to_thread(crew_instance.kickoff, inputs={'user_intent': user_intent})
+            
+            self.log_event(job_id, "Supervisor", "CrewAI execution finished. Extracting leads...", db=db)
+            
             if cancel_event.is_set(): return
             
-            self.log_event(job_id, "Supervisor", "Extracting, enriching, and scoring leads...", db=db)
-            job = db.query(Job).get(job_id)
+            # 2. Persistence Phase
+            # result.pydantic contains the FinalLeadList since the final task specified output_pydantic
+            final_output = result.pydantic
             
-            for raw_lead in raw_leads:
-                if cancel_event.is_set():
-                    self.log_event(job_id, "Supervisor", "Job stopping due to user cancellation.", db=db)
-                    break
-                
-                if job.leads_found >= job.max_leads:
-                    self.log_event(job_id, "Supervisor", f"Reached lead limit ({job.max_leads}). Stopping.", db=db)
-                    break
+            if final_output and hasattr(final_output, 'leads'):
+                for sc_lead in final_output.leads:
+                    if cancel_event.is_set():
+                        self.log_event(job_id, "Supervisor", "Job stopping due to user cancellation.", db=db)
+                        break
                     
-                try:
-                    # 3. Extraction
-                    extracted_data = await self.extractor.extract(str(raw_lead))
-                    
-                    # Check if lead already exists
-                    email = extracted_data.get('email')
-                    existing = db.query(Lead).filter(Lead.email == email).first() if email else None
-                    
+                    if job.leads_found >= job.max_leads:
+                        self.log_event(job_id, "Supervisor", f"Reached lead limit ({job.max_leads}). Stopping.", db=db)
+                        break
+                        
+                    # Check for duplicates
+                    existing = db.query(Lead).filter(Lead.email == sc_lead.email).first() if sc_lead.email else None
                     if not existing:
                         new_lead = Lead(
-                            name=extracted_data.get('name', raw_lead.get('name')),
-                            company=extracted_data.get('company', raw_lead.get('company')),
-                            email=email,
-                            linkedin_url=extracted_data.get('linkedin_url'),
-                            source_url=raw_lead.get('url'),
-                            raw_data=raw_lead,
-                            job_id=job_id
+                            name=sc_lead.name,
+                            company=sc_lead.company,
+                            email=sc_lead.email,
+                            linkedin_url=sc_lead.linkedin_url,
+                            source_url=sc_lead.source_url,
+                            score=sc_lead.score,
+                            vetting_status=sc_lead.vetting_status,
+                            job_id=job_id,
+                            campaign_id=campaign_id,
+                            tech_stack=sc_lead.tech_stack,
+                            hiring_signal=str(sc_lead.hiring_signal) if sc_lead.hiring_signal else None
                         )
-                        
-                        # 4. Enrichment (Firecrawl deep dive)
-                        try:
-                            await self.enrichment.enrich(new_lead)
-                            self.log_event(job_id, "Enrichment", f"Enriched lead: {new_lead.name}", db=db)
-                        except Exception as e:
-                            logger.error(f"Enrichment failed for {new_lead.name}: {e}")
-                            self.log_event(job_id, "Enrichment", f"Failed to enrich {new_lead.name}", level="WARNING", db=db)
-                        
-                        # 5. Scoring
-                        new_lead.score = self.scorer.score_lead(new_lead)
-                        
-                        # Auto-vet high-scoring leads to enable auto-sync
-                        if new_lead.score >= 15:
-                            new_lead.vetting_status = 'good'
-
                         db.add(new_lead)
                         job.leads_found += 1
-                        db.commit() # Commit each lead to avoid losing all on crash
-                except Exception as e:
-                    logger.error(f"Failed to process raw lead {raw_lead.get('name')}: {e}")
-                    self.log_event(job_id, "Supervisor", f"Skipping lead due to error: {e}", level="ERROR")
-                    continue
+                        db.commit()
             
             job.status = 'completed' if not cancel_event.is_set() else 'stopped'
             db.commit()
             
-            # 3.5 Auto-Sync to Google Sheets
+            # 3. Auto-Sync to Google Sheets
             target_sheet = job.sheet_id or os.getenv("GOOGLE_SHEET_ID")
             if job.status in ['completed', 'stopped'] and os.getenv("AUTO_SYNC_TO_SHEETS") == "true" and target_sheet:
                 self.log_event(job_id, "Supervisor", "Starting auto-sync to Google Sheets.", db=db)
-                # Sync leads that were auto-vetted as 'good'
                 high_leads = db.query(Lead).filter(Lead.job_id == job_id, Lead.vetting_status == 'good').all()
                 for hl in high_leads:
                     try:
-                        # Run blocking I/O in a separate thread
                         await asyncio.to_thread(self.sheets.sync_lead, hl, override_sheet_id=target_sheet, user=f"system_job_{job_id}")
                     except Exception as e:
                         self.log_event(job_id, "GoogleSheets", f"Failed to auto-sync lead {hl.id}: {e}", level="WARNING", db=db)
-            
-            # 4. Autonomous Deep Hunting (Gap Filling)
-            if not cancel_event.is_set():
-                await self.run_deep_hunting(job_id, db)
             
             self.log_event(job_id, "Supervisor", f"Job finished. {job.status.upper()}. Total leads: {job.leads_found}", db=db)
 
@@ -179,48 +153,6 @@ class SupervisorAgent:
                 del self._active_jobs[job_id]
             db.close()
 
-    async def run_deep_hunting(self, job_id: int, db: Session):
-        """
-        Scans recently found leads for missing critical info and spawns deep searches.
-        Args:
-            db: The active database session.
-        """
-        leads_to_hunt = db.query(Lead).filter(
-                Lead.job_id == job_id,
-                Lead.score >= 12,
-                (Lead.email == None) | (Lead.linkedin_url == None)
-            ).all()
-            
-        if not leads_to_hunt:
-            return
-
-        self.log_event(job_id, "Supervisor", f"Starting Deep Hunting for {len(leads_to_hunt)} high-value leads.", db=db)
-
-        for lead in leads_to_hunt:
-            target = lead.name or lead.company
-            # Generate ultra-specific dorks for this person
-            missing = []
-            if not lead.email:
-                missing.append("email")
-            if not lead.linkedin_url:
-                missing.append("linkedin")
-
-            deep_queries = [
-                f'"{target}" {lead.company} {" OR ".join(missing)}',
-                f'site:linkedin.com/in/ "{target}" {lead.company}',
-                f'"{target}" contact {lead.company}'
-            ]
-
-            # Fetch more signals specifically for this lead
-            new_signals = await self.scraper_pool.run_all(deep_queries)
-            for signal in new_signals:
-                extracted = await self.extractor.extract(str(signal))
-                if not lead.email and extracted.get('email'):
-                    lead.email = extracted['email']
-                if not lead.linkedin_url and extracted.get('linkedin_url'):
-                    lead.linkedin_url = extracted['linkedin_url']
-
-            db.commit()
 
     def log_event(self, job_id: int, agent_name: str, message: str, level: str = "INFO", db: Optional[Session] = None):
         """

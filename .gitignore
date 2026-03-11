@@ -8,6 +8,10 @@ ENV/
 .env
 .streamlit/secrets.toml
 
+node_modules
+dist
+build
+credentials.json
 # Database
 *.db
 lead_engine.db

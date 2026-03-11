@@ -1,35 +1,23 @@
 # Premium UI Styles for Lead Intelligence System
 
-def get_custom_css(theme="dark"):
+def get_custom_css():
     """
-    Definitive high-fidelity dashboard styles.
-    Focus on: Precision alignment, elegant hover states, and elite typography.
+    Definitive high-fidelity dark dashboard styles.
     """
-    
-    if theme == "dark":
-        bg_color = "#0B0C10"
-        card_bg = "#1A1C23"
-        text_color = "#F8FAFC"
-        sub_text = "#94A3B8"
-        border_color = "rgba(255, 255, 255, 0.08)"
-        accent_green = "#00FFA3" 
-        accent_orange = "#FF9D00"
-        sidebar_bg = "#111218"
-        input_bg = "#0F172A"
-        input_border = "rgba(255, 255, 255, 0.12)"
-        shadow = "0 20px 60px rgba(0, 0, 0, 0.6)"
-    else:
-        bg_color = "#F1F5F9"
-        card_bg = "#FFFFFF"
-        text_color = "#0F172A"
-        sub_text = "#475569"
-        border_color = "#CBD5E1"
-        accent_green = "#059669"
-        accent_orange = "#D97706"
-        sidebar_bg = "#FFFFFF"
-        input_bg = "#F8FAFC"
-        input_border = "#E2E8F0"
-        shadow = "0 10px 30px rgba(0, 0, 0, 0.08)"
+    bg_color = "#0B0C10"
+    card_bg = "#1A1C23"
+    text_color = "#F8FAFC"
+    sub_text = "#94A3B8"
+    border_color = "rgba(255, 255, 255, 0.08)"
+    accent_green = "#00FFA3" 
+    accent_orange = "#FF9D00"
+    sidebar_bg = "#111218"
+    input_bg = "#0F172A"
+    input_border = "rgba(255, 255, 255, 0.12)"
+    shadow = "0 20px 60px rgba(0, 0, 0, 0.6)"
+    glass_bg = "rgba(26, 28, 35, 0.7)"
+    glass_border = "rgba(255, 255, 255, 0.1)"
+    glow_shadow = f"0 0 20px {accent_green}33"
 
     return f"""
     <style>
@@ -42,6 +30,7 @@ def get_custom_css(theme="dark"):
         background-color: {bg_color};
         font-family: 'Inter', sans-serif;
         color: {text_color};
+        overflow-x: hidden !important;
     }}
 
     /* Card System */
@@ -71,7 +60,7 @@ def get_custom_css(theme="dark"):
     .premium-card:hover {{
         border-color: {accent_green}55;
         transform: translateY(-2px);
-        box-shadow: {shadow.replace('0.6', '0.75').replace('0.08', '0.15')};
+        box-shadow: {shadow.replace('0.6', '0.75')};
     }}
 
     /* Typography Scales */
@@ -92,15 +81,59 @@ def get_custom_css(theme="dark"):
         letter-spacing: 1.5px;
     }}
 
-    /* Sidebar - Absolute Contrast Fix */
     section[data-testid="stSidebar"] {{
         background-color: {sidebar_bg} !important;
         border-right: 1px solid {border_color};
     }}
+    
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+        gap: 1rem !important;
+        padding-top: 0rem !important;
+    }}
+    
+    /* Remove padding from the actual sidebar container */
+    [data-testid="stSidebarUserContent"] {{
+        padding-top: 2rem !important;
+    }}
+
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] p,
     section[data-testid="stSidebar"] div {{
         color: {text_color} !important;
+    }}
+    
+    /* Floating Chat Widget */
+    .floating-chat-trigger {{
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 65px;
+        height: 65px;
+        background: {accent_green};
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 8px 32px {accent_green}66;
+        z-index: 999999;
+        font-size: 28px;
+        border: 2px solid {bg_color};
+    }}
+
+    .floating-chat-trigger:hover {{
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 12px 40px {accent_green}88;
+    }}
+
+    /* Glass Panels */
+    .glass-card {{
+        background: {glass_bg} !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid {glass_border} !important;
+        border-radius: 16px !important;
+        padding: 24px !important;
     }}
     
     /* Input & Interactive Elements Overhaul */
@@ -143,7 +176,7 @@ def get_custom_css(theme="dark"):
     /* Buttons */
     .stButton>button {{
         background: {accent_green} !important;
-        color: {theme == 'dark' and '#000000' or '#FFFFFF'} !important;
+        color: #000000 !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 700 !important;
@@ -153,18 +186,6 @@ def get_custom_css(theme="dark"):
         box-shadow: 0 4px 15px {accent_green}44;
     }}
     
-    /* Icon Theme Toggle Specific */
-    .stButton>button:has(span:contains("🌙")), 
-    .stButton>button:has(span:contains("☀️")) {{
-        background: transparent !important;
-        border: 1px solid {border_color} !important;
-        color: {text_color} !important;
-        width: 44px !important;
-        height: 44px !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-    }}
-
     /* Tabs */
     .stTabs [data-baseweb="tab-list"] {{ border: none !important; gap: 12px !important; }}
     .stTabs [data-baseweb="tab"] {{
@@ -176,7 +197,7 @@ def get_custom_css(theme="dark"):
     }}
     .stTabs [aria-selected="true"] {{
         background-color: {accent_green} !important;
-        color: {theme == 'dark' and '#000000' or '#FFFFFF'} !important;
+        color: #000000 !important;
     }}
 
     /* Badges */
@@ -205,18 +226,72 @@ def get_custom_css(theme="dark"):
         }}
     }}
 
+    /* Sidebar Logo & Spacing */
+    /* Cleaned up image logo CSS */
+
     /* Global Text Guards */
     div, span, a {{
         word-break: break-word;
+    }}
+
+    /* Chat Message Styling */
+    [data-testid="stChatMessage"] {{
+        background-color: {input_bg} !important;
+        border: 1px solid {border_color} !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+        margin-bottom: 0.5rem !important;
+    }}
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {{
+        border-left: 3px solid {accent_green} !important;
+    }}
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {{
+        border-left: 3px solid {accent_orange} !important;
+    }}
+    
+    @media (max-width: 768px) {{
+        .premium-card {{
+            padding: 16px !important;
+            margin-bottom: 16px !important;
+        }}
+        .glass-card {{
+            padding: 16px !important;
+        }}
+        .metric-value {{
+            font-size: 24px !important;
+        }}
+        
+        /* Hide floating widget or make it smaller on mobile */
+        div[data-testid="stPopover"] {{
+            bottom: 15px !important;
+            right: 15px !important;
+        }}
+        div[data-testid="stPopoverContent"] {{
+            width: 85vw !important;
+            max-width: 320px !important;
+            bottom: 70px !important;
+        }}
+        
+        /* Stack buttons on mobile if they get too squeezed */
+        .stButton button {{
+            width: 100% !important;
+        }}
+    }}
+
+    @media (max-width: 480px) {{
+        .stTabs [data-baseweb="tab"] {{
+            padding: 8px 12px !important;
+            font-size: 12px !important;
+        }}
     }}
     
     </style>
     """
 
-def get_card_html(label, value, trend=None, is_up=True, theme="dark"):
-    trend_color = "#00FFA3" if theme == "dark" else "#059669"
+def get_card_html(label, value, trend=None, is_up=True):
+    trend_color = "#00FFA3"
     if not is_up:
-        trend_color = "#FF9D00" if theme == "dark" else "#D97706"
+        trend_color = "#FF9D00"
         
     trend_html = ""
     if trend:

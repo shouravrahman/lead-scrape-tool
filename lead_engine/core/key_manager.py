@@ -55,6 +55,12 @@ class KeyManager:
                 self.keys[service].extend(decrypted_keys)
                 logger.info(f"KeyManager: Loaded {len(self.keys[service])} keys for {service}")
 
+    def get_keys(self, service: str) -> List[str]:
+        """
+        Returns all keys available for a service.
+        """
+        return self.keys.get(service, [])
+
     def get_key(self, service: str) -> Optional[str]:
         """
         Returns the currently active key for a service.
@@ -88,5 +94,35 @@ class KeyManager:
             if key not in self.keys[service]:
                 self.keys[service].append(key)
                 logger.info(f"KeyManager: Added new key to {service} pool. Total: {len(self.keys[service])}")
+                
+    def get_crewai_llm(self, service: str = "openrouter", model: str = None):
+        """
+        Returns a configured CrewAI LLM instance using the active key for a service.
+        Requires `pip install crewai`.
+        """
+        try:
+            from crewai import LLM
+        except ImportError:
+            logger.error("CrewAI is not installed.")
+            return None
+
+        # Determine model name based on service (uses litellm syntax: e.g. 'openrouter/model-name')
+        if not model:
+            if service == "openrouter":
+                env_model = os.getenv("PLANNER_MODEL", "anthropic/claude-3-haiku")
+                model = env_model if env_model.startswith("openrouter/") else f"openrouter/{env_model}"
+
+        api_key = self.get_key(service)
+        if not api_key:
+             logger.warning(f"No API key found for {service}. LLM initialization may fail.")
+        else:
+             if service == "openrouter":
+                 os.environ["OPENROUTER_API_KEY"] = api_key
+
+        base_url = None
+        if service == "openrouter":
+            base_url = "https://openrouter.ai/api/v1"
+
+        return LLM(model=model, api_key=api_key, base_url=base_url)
 
 key_manager = KeyManager()

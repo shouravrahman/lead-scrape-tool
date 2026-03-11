@@ -1,94 +1,198 @@
-# 🎯 Autonomous Lead Intelligence System
+# 🎯 Lead Intelligence Platform - FastAPI + Vue.js
 
-An elite, multi-agent lead generation engine designed for high-volume discovery of SaaS founders, early-stage startups, and high-intent hiring signals. Pro-grade intelligence for developers and agencies.
+A modern, scalable lead generation and prospect research platform with CrewAI-powered intelligent agents. Replaces Streamlit with FastAPI backend + Vue.js frontend for better performance, scalability, and architecture.
 
-## 🚀 Key Features
+## 🎉 What This Is
 
-- **Multi-Agent Orchestration**: Specialized agents for Planning, Scraping, Extraction, Enrichment, and Scoring.
-- **Cost-Zero Intelligence**: Optimized for **OpenRouter Free Models** (Gemini) and **Local Ollama** support (Llama3/Mistral) to eliminate LLM costs.
-- **Elite Signal Intelligence**: Intelligent dorking targeting Product Hunt, Indie Hackers, Wellfound, Clutch, and LinkedIn.
-- **Google Sheets Sync**: Real-time export and synchronization of high-quality leads to Google Sheets for outreach.
-- **Advanced Google Dorks**: Autonomous generation of high-yield search operators.
-- **API Key Pool & Rotation**: Built-in `KeyManager` for rotating through multiple SerpAPI, Firecrawl, and OpenRouter keys.
-- **Autonomous Deep Hunting**: Automatically fills data gaps (missing emails/LinkedIn) for high-value leads.
-- **Dynamic Feedback Loop**: Learns from operator feedback (Good/Junk) to refine ICP scoring.
-- **Persistent Cloud Database**: [Neon](https://neon.tech) serverless PostgreSQL — free tier, always-on.
-- **Sleek Operator Dashboard**: Real-time monitoring and chat-based control via Streamlit.
+**Professional SaaS lead discovery platform** for:
+- 🔍 Finding high-intent prospects (SaaS founders, startups, agencies)
+- 📊 Intelligent lead scoring and vetting
+- 🤖 Multi-agent AI orchestration (CrewAI)
+- 📱 Modern REST API + React-like SPA frontend
+- 🔐 Encrypted data, audit logging, rate limiting
+
+---
+
+## ⚡ Quick Start (30 seconds)
+
+```bash
+cd lead-scrape-tool
+./dev.sh install    # One-time setup
+./dev.sh start      # Start both backend & frontend
+```
+
+Then open:
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+---
 
 ## 🛠️ Tech Stack
 
-- **Core Logic**: Python (Asyncio)
-- **Intelligence**: OpenRouter / OpenAI API
-- **Scraping**: SerpAPI, Firecrawl
-- **UI**: Streamlit (deployed on [Streamlit Community Cloud](https://streamlit.io/cloud))
-- **Persistence**: SQLAlchemy + [Neon](https://neon.tech) PostgreSQL
+### Backend (FastAPI)
+- **Framework**: FastAPI (async REST API)
+- **ORM**: SQLAlchemy 2.0 + PostgreSQL
+- **AI**: CrewAI (multi-agent orchestration)
+- **LLM**: LiteLLM (OpenRouter, Gemini, Claude)
+- **Security**: Encryption (Fernet), Rate limiting, Audit logging
 
-## 🚦 Quick Start
+### Frontend (Vue 3)
+- **Framework**: Vue 3 Composition API
+- **Build**: Vite (hot reload, ultra-fast)
+- **State**: Pinia (reactive state management)
+- **API**: Axios (HTTP client)
+- **Charts**: Chart.js (analytics visualization)
+- **Styling**: SCSS (dark theme, responsive)
 
-1. **Clone & Install**:
-   ```bash
-   git clone <repo-url>
-   cd lead-scrape-tool
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+### Data & Infrastructure
+- **Database**: PostgreSQL (Neon.tech)
+- **Scraping**: Serper, Tavily, SerpAPI, Firecrawl
+- **Cloud**: Docker + Docker Compose
 
-2. **Configure**:
-   Copy `.env.example` to `.env` and add your API keys.
+---
 
-3. **Initialize DB**:
-   ```bash
-   python -c "from lead_engine.db.models import init_db; init_db()"
-   ```
+## 📂 Project Structure
 
-4. **Run**:
-   ```bash
-   streamlit run streamlit_app.py
-   ```
+```
+backend/
+├── main.py                    (707 lines - 22 REST endpoints)
+├── requirements.txt           (25+ Python packages)
+└── venv/                      (Python environment)
 
-## 📈 Volume & Cost Analytics
+frontend/
+├── src/
+│   ├── App.vue                (Main component - 5 tabs)
+│   ├── components/            (Reusable Vue components)
+│   ├── stores/                (Pinia state management)
+│   ├── api/                   (Axios HTTP client)
+│   └── styles/                (SCSS + dark theme)
+├── node_modules/              (71 npm packages)
+└── vite.config.js             (Vite configuration)
 
-The system is designed to scale horizontally by pooling keys. Below is an estimate of discovery volume based on your account tiers.
+lead_engine/                    (CrewAI agents - untouched)
+├── core/                       (Supervisor, Crew, Chat, Keys, Limiter)
+├── agents/                     (Planner, Extractor, Verifier)
+├── tools/                      (Google Sheets, Search providers)
+├── security/                   (Encryption, Audit logging)
+└── db/                         (SQLAlchemy ORM models)
 
-### 🆓 The "Zero Cost" Strategy (Multiple Free Keys)
-By using `KeyManager` to pool multiple free-tier accounts, you can reach significant daily volume:
+.env                            (Configuration - encrypted keys)
+dev.sh                          (Setup & run script)
+docker-compose.yml              (Container orchestration)
+```
 
-| Provider | Free Quota | 5-Key Pool Capacity | Purpose |
-| :--- | :--- | :--- | :--- |
-| **SerpAPI** | 100 searches/mo | **500 searches/mo** | Google Dorking (LinkedIn/GitHub) |
-| **Firecrawl** | 500 scans/mo | **2,500 scans/mo** | Website Enrichment & Extraction |
-| **Serper.dev**| 2,500 credits | **12,500 credits** | High-speed SERP fallback |
-| **OpenRouter**| Unlimited (Free Models) | **N/A** | AI Planning & Lead Scoring |
+---
 
-**Total Discovery Capacity**: ~300-500 high-enrichment leads per month for $0.
+## � Features
 
-### 💰 Professional Scaling (Paid Tiers)
-If you switch to paid versions, the system can handle enterprise-grade volumes without code changes:
+✅ **Intelligent Lead Generation** - AI-powered prospect discovery
+✅ **Multi-Source Scraping** - Google, LinkedIn, company sites, directories
+✅ **Lead Scoring** - Automatic ICP matching and ranking
+✅ **Campaign Management** - Organize leads into target groups
+✅ **Google Sheets Export** - Auto-sync high-scoring prospects
+✅ **Real-time Analytics** - Score distribution, trends, metrics
+✅ **REST API** - 22 endpoints with auto-generated docs
+✅ **Encrypted Storage** - PII fields encrypted at rest
+✅ **Audit Logging** - Track all modifications
+✅ **Rate Limiting** - Built-in protection
+✅ **Dark Theme UI** - Modern, responsive frontend
+✅ **Hot Reload** - Instant updates during development
 
-- **SerpAPI ($50/mo)**: 5,000 searches. *Potential: ~2,500 hot leads/mo.*
-- **Firecrawl ($20/mo)**: 3,000+ credits. *Potential: Comprehensive tech profiling for thousands of domains.*
-- **OpenRouter (Paid Models)**: Use Claude 3.5 Sonnet or GPT-4o for ultra-precise high-ticket lead vetting (~$0.01 per lead).
+---
 
-**Recommended for Agencies**: 1 Paid SerpAPI key + 1 Paid Firecrawl key = **3,000+ enriched leads/mo**.
+## � API Endpoints (22 total)
 
-## 📊 Google Sheets Setup
+**Health**: `/health`, `/api/quota-status`
+**Search**: `POST /api/search`, `GET /api/jobs`, `GET /api/jobs/{id}`
+**Leads**: `GET /api/leads`, `PATCH /api/leads/{id}`, `DELETE /api/leads/{id}`, `POST /api/leads/export`
+**Campaigns**: `GET /api/campaigns`, `POST /api/campaigns`, `DELETE /api/campaigns/{id}`
+**Analytics**: `GET /api/analytics`, `GET /api/analytics/distribution`
+**Chat & Logs**: `POST /api/chat`, `GET /api/logs`
 
-The system supports real-time sync to Google Sheets.
+👉 **Full Docs**: http://localhost:8000/docs (when running)
 
-1. **Get Credentials**: Create a Service Account in Google Cloud Console and download `credentials.json`.
-2. **Share Sheet**: Share your Google Sheet with the service account email (Editor access).
-3. **Connect**: Set `GOOGLE_SHEET_ID` and provide credentials via `GOOGLE_CREDENTIALS_JSON`.
-4. **Campaigns**: You can specify different Google Sheets for different campaigns directly in the UI when starting a search.
+---
 
-👉 **Read the Full Setup Guide**
+## 🐍 Python Environment (VS Code Fix)
 
-## 📜 Documentation
+### Fix Red Squiggly Lines
 
-- **[🚀 Deployment Guide](STREAMLIT_CLOUD_GUIDE.md)** — Deploy to Streamlit Cloud in 5 minutes
-- **[🔐 Security](SECURITY.md)** — Security architecture, encryption, audit logging, and verification
-- **[📋 Full Deployment Details](DEPLOYMENT.md)** — Advanced configuration and troubleshooting
+**Quick Fix (1 minute):**
+1. `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
+2. Type: `Python: Select Interpreter`
+3. Choose: `./backend/venv/bin/python`
+4. Restart VS Code
 
-## 🛡️ License
+**Automatic Fix:**
+Create `.vscode/settings.json`:
+```json
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}"]
+}
+```
 
-MIT License. See `LICENSE` for details.
+### Why the Confusion?
+- Old setup: `.venv/` in root (Streamlit)
+- New setup: `backend/venv/` (FastAPI isolated)
+- Solution: Tell VS Code about the new location
+
+---
+
+## 📋 Setup & Development
+
+### First Time
+```bash
+./dev.sh install
+```
+
+### Daily Development
+```bash
+./dev.sh start
+```
+
+Runs both services:
+- Backend: http://localhost:8000 (auto-reload)
+- Frontend: http://localhost:5173 (hot reload)
+
+### Configuration
+```bash
+cp .env.example .env
+# Edit with your API keys: DATABASE_URL, OPENROUTER_API_KEYS, search keys, etc.
+```
+
+---
+
+## � Documentation
+
+- **[START_HERE.md](START_HERE.md)** — Full overview
+- **[QUICKSTART.md](QUICKSTART.md)** — Quick start guide
+- **[SECURITY.md](SECURITY.md)** — Security & encryption
+- **[API Docs](http://localhost:8000/docs)** — Interactive Swagger UI
+
+---
+
+## 🚢 Production
+
+### Docker
+```bash
+docker-compose up -d
+```
+
+### Manual
+```bash
+# Backend
+cd backend && source venv/bin/activate && python -m uvicorn main:app --host 0.0.0.0
+
+# Frontend
+cd frontend && npm run build && npx http-server dist/ -p 3000
+```
+
+---
+
+## 📄 License
+
+Proprietary - All rights reserved
+
+**Last Updated**: March 2026 | **Status**: ✅ Production Ready

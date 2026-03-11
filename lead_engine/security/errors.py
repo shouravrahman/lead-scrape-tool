@@ -155,6 +155,13 @@ class ErrorHandler:
             parts.append(f"resource={resource_id}")
         return " | ".join(parts)
 
+    @staticmethod
+    def get_base64_image(image_path: str) -> str:
+        """Read image and return base64 string"""
+        import base64
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+
 
 # Decorator for automatic error handling
 def handle_errors(operation_name: str = "Operation"):

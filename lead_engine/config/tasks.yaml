@@ -1,0 +1,34 @@
+plan_search:
+  description: >
+    Analyze the user's intent: "{user_intent}"
+    Generate a mix of 8-10 advanced search queries (Google Dorks) targeting:
+    - Launch Discovery (Product Hunt, Indie Hackers, Hacker News)
+    - Hiring Signals (Wellfound, Indeed, Glassdoor)
+    - Agency Discovery (Clutch, GoodFirms)
+    - Social Intelligence (LinkedIn, Twitter/X)
+    
+    Use operators like site:, intitle:, inurl:, and exact match quotes.
+  expected_output: >
+    A list of highly effective search search queries ready to be executed by a web scraper tool.
+  agent: planner
+
+scrape_and_extract:
+  description: >
+    Execute the search queries provided by the planner. For each relevant resulting URL, scrape the webpage content and extract a structured profile. Ensure you gather the person's name, their company, their role, and contact information like email and LinkedIn URL. Pay close attention to any signals indicating they are hiring or launching a product.
+  expected_output: >
+    A list of structured, partially or fully populated lead profiles.
+  agent: extractor
+
+score_lead:
+  description: >
+    Evaluate each extracted lead profile.
+    Assign a score out of 20 based on the following weights:
+    - Role Check (5 points): Higher for founder, ceo, cto, owner, partner, maker.
+    - Company Check (5 points): Presence of a company name.
+    - Hiring Signal (6 points): Evidence of hiring, jobs, careers.
+    - Launch Momentum (4 points): Evidence of product hunt, beta, show hn.
+    
+    Also, identify any tech stack details if applicable. Set the `vetting_status` to 'good' if the total score is 15 or more, otherwise leave it empty.
+  expected_output: >
+    A final list of structured Pydantic objects containing the complete lead data, including calculated score and vetting status.
+  agent: scorer
